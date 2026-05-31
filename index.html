@@ -29,6 +29,7 @@
     .tb-btn.page-btn { background: #1a1a3e; border-color: #a78bfa; color: #e0e0ff; font-size: 15px; padding: 8px 10px; }
     .tb-btn.page-btn:active { background: #533483; }
     #pageIndicator { color: #a78bfa; font-size: 13px; font-family: sans-serif; font-weight: 600; min-width: 48px; text-align: center; }
+    #saveStatus { color: #a78bfa; font-size: 11px; font-family: sans-serif; min-width: 60px; text-align: right; }
     .sep { width: 0.5px; height: 24px; background: #0f3460; }
     #canvas-wrap { flex: 1; position: relative; overflow: hidden; }
     #bgLayer { position: absolute; inset: 0; pointer-events: none; }
@@ -45,7 +46,6 @@
       width: 32px; height: 32px; border-radius: 50%; border: 2px solid #533483;
       padding: 0; cursor: pointer; background: none; -webkit-tap-highlight-color: transparent;
     }
-    /* OCR Modal */
     #ocrModal {
       display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75);
       z-index: 100; align-items: center; justify-content: center; padding: 16px;
@@ -63,7 +63,6 @@
       min-height: 120px; resize: vertical; width: 100%; outline: none;
     }
     .ocr-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-    /* Page transition flash */
     #pageFlash {
       position: absolute; inset: 0; background: white; opacity: 0;
       pointer-events: none; transition: opacity 0.15s;
@@ -74,7 +73,10 @@
 <body>
 <div id="app">
   <div id="toolbar">
-    <span id="toolbar-title">✎ PIZARRA</span>
+    <div class="tb-row">
+      <span id="toolbar-title">✎ PIZARRA</span>
+      <span id="saveStatus">✓ guardado</span>
+    </div>
     <div class="tb-row">
       <div class="size-dot active" data-size="3"><div class="dot-inner" style="width:5px;height:5px"></div></div>
       <div class="size-dot" data-size="7"><div class="dot-inner" style="width:9px;height:9px"></div></div>
@@ -91,7 +93,7 @@
       <div class="tb-btn page-btn" id="prevBtn">◀</div>
       <span id="pageIndicator">1 / 1</span>
       <div class="tb-btn page-btn" id="nextBtn">▶</div>
-      <div class="tb-btn ocr-btn" id="addPageBtn">+ Página</div>
+      <div class="tb-btn ocr-btn" id="addPageBtn">+ Pág</div>
       <div class="sep"></div>
       <div class="tb-btn ocr-btn" id="ocrBtn">OCR</div>
       <div class="tb-btn danger" id="clearBtn">Borrar</div>
@@ -126,6 +128,9 @@ const ctx = dc.getContext('2d');
 const wrap = document.getElementById('canvas-wrap');
 const pageIndicator = document.getElementById('pageIndicator');
 const pageFlash = document.getElementById('pageFlash');
+const saveStatus = document.getElementById('saveStatus');
+
+const STORAGE_KEY = 'pizarra_diy_v1';
 
 let isDrawing = false;
 let lastX = 0, lastY = 0;
@@ -133,14 +138,47 @@ let currentBg = 'rayada';
 let currentMode = 'linea';
 let currentSize = 3;
 let currentColor = '#2c2c2a';
-
-// Páginas: array de dataURL strings (null = página vacía)
 let pages = [null];
 let currentPage = 0;
+let saveTimer = null;
 
+// --- Persistencia ---
+function saveToStorage() {
+  saveStatus.textContent = '...';
+  savePage();
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ pages, currentPage, currentBg }));
+    saveStatus.textContent = '✓ guardado';
+  } catch(e) {
+    saveStatus.textContent = '⚠ sin espacio';
+  }
+}
+
+function scheduleSave() {
+  saveStatus.textContent = '...';
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveToStorage, 1500);
+}
+
+function loadFromStorage() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return false;
+    const data = JSON.parse(raw);
+    pages = data.pages || [null];
+    currentPage = data.currentPage || 0;
+    currentBg = data.currentBg || 'rayada';
+    // Sync bg button
+    document.querySelectorAll('[data-bg]').forEach(b => {
+      b.classList.toggle('active', b.dataset.bg === currentBg);
+    });
+    return true;
+  } catch(e) { return false; }
+}
+
+// --- Canvas ---
 function resizeCanvases() {
-  const w = wrap.clientWidth;
-  const h = wrap.clientHeight;
+  const w = wrap.clientWidth, h = wrap.clientHeight;
   const tmp = document.createElement('canvas');
   tmp.width = dc.width; tmp.height = dc.height;
   tmp.getContext('2d').drawImage(dc, 0, 0);
@@ -203,8 +241,10 @@ function goToPage(index) {
   flashTransition();
   currentPage = index;
   setTimeout(() => loadPage(currentPage), 80);
+  scheduleSave();
 }
 
+// --- Controles de página ---
 document.getElementById('prevBtn').addEventListener('pointerdown', e => {
   e.stopPropagation();
   if (currentPage > 0) goToPage(currentPage - 1);
@@ -225,9 +265,10 @@ document.getElementById('addPageBtn').addEventListener('pointerdown', e => {
     ctx.clearRect(0, 0, dc.width, dc.height);
     updateIndicator();
   }, 80);
+  scheduleSave();
 });
 
-// Drawing
+// --- Dibujo ---
 function getPos(e) {
   const r = dc.getBoundingClientRect();
   const src = e.changedTouches ? e.changedTouches[0] : e;
@@ -272,7 +313,11 @@ function doDraw(e) {
   lastX = cx; lastY = cy;
 }
 
-function endDraw() { isDrawing = false; }
+function endDraw() {
+  if (!isDrawing) return;
+  isDrawing = false;
+  scheduleSave();
+}
 
 dc.addEventListener('pointerdown', startDraw, { passive: false });
 dc.addEventListener('pointermove', doDraw, { passive: false });
@@ -284,6 +329,7 @@ document.getElementById('clearBtn').addEventListener('pointerdown', e => {
   e.stopPropagation();
   ctx.clearRect(0, 0, dc.width, dc.height);
   pages[currentPage] = null;
+  scheduleSave();
 });
 
 document.querySelectorAll('[data-bg]').forEach(btn => {
@@ -293,6 +339,7 @@ document.querySelectorAll('[data-bg]').forEach(btn => {
     document.querySelectorAll('[data-bg]').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     drawBg();
+    scheduleSave();
   });
 });
 
@@ -318,7 +365,7 @@ document.getElementById('colorPicker').addEventListener('input', e => {
   currentColor = e.target.value;
 });
 
-// OCR
+// --- OCR ---
 const ocrModal = document.getElementById('ocrModal');
 const ocrStatus = document.getElementById('ocrStatus');
 const ocrText = document.getElementById('ocrText');
@@ -338,9 +385,8 @@ document.getElementById('ocrBtn').addEventListener('pointerdown', async e => {
     ocrStatus.textContent = 'Cargando motor OCR...';
     const worker = await Tesseract.createWorker('spa', 1, {
       logger: m => {
-        if (m.status === 'recognizing text') {
+        if (m.status === 'recognizing text')
           ocrStatus.textContent = 'Reconociendo... ' + Math.round(m.progress * 100) + '%';
-        }
       }
     });
     const { data: { text } } = await worker.recognize(merged);
@@ -373,9 +419,16 @@ document.getElementById('closeOcrBtn').addEventListener('pointerdown', e => {
   ocrModal.classList.remove('open');
 });
 
+// --- Init ---
 window.addEventListener('resize', resizeCanvases);
 resizeCanvases();
-updateIndicator();
+const loaded = loadFromStorage();
+drawBg();
+if (loaded) {
+  loadPage(currentPage);
+} else {
+  updateIndicator();
+}
 </script>
 </body>
 </html>
