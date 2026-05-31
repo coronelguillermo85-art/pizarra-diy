@@ -10,7 +10,7 @@
     #toolbar {
       display: flex; align-items: center; justify-content: space-between;
       padding: 10px 12px; background: #16213e; border-bottom: 0.5px solid #0f3460;
-      flex-shrink: 0; gap: 8px; user-select: none; touch-action: none;
+      flex-shrink: 0; gap: 8px; user-select: none; touch-action: none; flex-wrap: wrap;
     }
     #toolbar-title { color: #e0e0ff; font-size: 14px; font-weight: 500; font-family: sans-serif; letter-spacing: 1px; }
     .tb-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
@@ -24,6 +24,8 @@
     .tb-btn.active { background: #533483; border-color: #a78bfa; }
     .tb-btn.danger { background: #3d0c0c; border-color: #e74c3c; color: #ffaaaa; }
     .tb-btn.danger:active { background: #6b1414; }
+    .tb-btn.ocr-btn { background: #0d3d2e; border-color: #1abc9c; color: #aafce8; }
+    .tb-btn.ocr-btn:active { background: #1a5c44; }
     .sep { width: 0.5px; height: 24px; background: #0f3460; }
     #canvas-wrap { flex: 1; position: relative; overflow: hidden; }
     #bgLayer { position: absolute; inset: 0; pointer-events: none; }
@@ -40,6 +42,23 @@
       width: 32px; height: 32px; border-radius: 50%; border: 2px solid #533483;
       padding: 0; cursor: pointer; background: none; -webkit-tap-highlight-color: transparent;
     }
+    #ocrModal {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75);
+      z-index: 100; align-items: center; justify-content: center; padding: 16px;
+    }
+    #ocrModal.open { display: flex; }
+    #ocrBox {
+      background: #16213e; border: 0.5px solid #533483; border-radius: 12px;
+      padding: 20px; width: 100%; max-width: 420px; display: flex; flex-direction: column; gap: 12px;
+    }
+    #ocrBox h2 { color: #e0e0ff; font-size: 15px; font-family: sans-serif; font-weight: 500; }
+    #ocrStatus { color: #aafce8; font-size: 13px; font-family: sans-serif; min-height: 18px; }
+    #ocrText {
+      background: #0f1923; color: #e0e0ff; border: 0.5px solid #533483;
+      border-radius: 8px; padding: 12px; font-size: 14px; font-family: sans-serif;
+      min-height: 120px; resize: vertical; width: 100%; outline: none;
+    }
+    .ocr-actions { display: flex; gap: 8px; flex-wrap: wrap; }
   </style>
 </head>
 <body>
@@ -47,9 +66,9 @@
   <div id="toolbar">
     <span id="toolbar-title">✎ PIZARRA</span>
     <div class="tb-row">
-      <div class="size-dot active" data-size="3" title="Fino"><div class="dot-inner" style="width:5px;height:5px"></div></div>
-      <div class="size-dot" data-size="7" title="Medio"><div class="dot-inner" style="width:9px;height:9px"></div></div>
-      <div class="size-dot" data-size="14" title="Grueso"><div class="dot-inner" style="width:15px;height:15px"></div></div>
+      <div class="size-dot active" data-size="3"><div class="dot-inner" style="width:5px;height:5px"></div></div>
+      <div class="size-dot" data-size="7"><div class="dot-inner" style="width:9px;height:9px"></div></div>
+      <div class="size-dot" data-size="14"><div class="dot-inner" style="width:15px;height:15px"></div></div>
       <input type="color" id="colorPicker" value="#2c2c2a" title="Color">
       <div class="sep"></div>
       <div class="tb-btn active" data-mode="linea">Línea</div>
@@ -59,6 +78,7 @@
       <div class="tb-btn active" data-bg="rayada">Rayada</div>
       <div class="tb-btn" data-bg="penta">♪ Pentagrama</div>
       <div class="sep"></div>
+      <div class="tb-btn ocr-btn" id="ocrBtn">Leer texto</div>
       <div class="tb-btn danger" id="clearBtn">Borrar</div>
     </div>
   </div>
@@ -68,6 +88,20 @@
   </div>
 </div>
 
+<div id="ocrModal">
+  <div id="ocrBox">
+    <h2>Texto reconocido</h2>
+    <div id="ocrStatus">Procesando...</div>
+    <textarea id="ocrText" readonly placeholder="El texto aparece acá..."></textarea>
+    <div class="ocr-actions">
+      <div class="tb-btn ocr-btn" id="copyBtn">Copiar</div>
+      <div class="tb-btn ocr-btn" id="downloadBtn">Descargar .txt</div>
+      <div class="tb-btn danger" id="closeOcrBtn">Cerrar</div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script>
 const bgCanvas = document.getElementById('bgLayer');
 const bgCtx = bgCanvas.getContext('2d');
@@ -99,31 +133,22 @@ function drawBg() {
   bgCtx.clearRect(0, 0, w, h);
   bgCtx.fillStyle = '#ecf0f1';
   bgCtx.fillRect(0, 0, w, h);
-
   if (currentBg === 'lisa') return;
-
   if (currentBg === 'rayada') {
     bgCtx.strokeStyle = '#bdc3c7';
     bgCtx.lineWidth = 1;
     for (let y = 40; y < h; y += 40) {
-      bgCtx.beginPath();
-      bgCtx.moveTo(0, y);
-      bgCtx.lineTo(w, y);
-      bgCtx.stroke();
+      bgCtx.beginPath(); bgCtx.moveTo(0, y); bgCtx.lineTo(w, y); bgCtx.stroke();
     }
     return;
   }
-
   if (currentBg === 'penta') {
     bgCtx.strokeStyle = '#95a5a6';
     bgCtx.lineWidth = 1;
     for (let base = 60; base < h; base += 160) {
       for (let i = 0; i < 5; i++) {
         const y = base + i * 12;
-        bgCtx.beginPath();
-        bgCtx.moveTo(0, y);
-        bgCtx.lineTo(w, y);
-        bgCtx.stroke();
+        bgCtx.beginPath(); bgCtx.moveTo(0, y); bgCtx.lineTo(w, y); bgCtx.stroke();
       }
     }
   }
@@ -160,8 +185,7 @@ function doDraw(e) {
   e.preventDefault();
   const [cx, cy] = getPos(e);
   ctx.save();
-  ctx.lineJoin = 'round';
-  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round'; ctx.lineCap = 'round';
   if (currentMode === 'goma') {
     ctx.globalCompositeOperation = 'destination-out';
     ctx.strokeStyle = 'rgba(0,0,0,1)';
@@ -171,13 +195,9 @@ function doDraw(e) {
     ctx.strokeStyle = currentColor;
     ctx.lineWidth = (e.pressure && e.pressure > 0) ? Math.max(1, e.pressure * currentSize * 2) : currentSize;
   }
-  ctx.beginPath();
-  ctx.moveTo(lastX, lastY);
-  ctx.lineTo(cx, cy);
-  ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(lastX, lastY); ctx.lineTo(cx, cy); ctx.stroke();
   ctx.restore();
-  lastX = cx;
-  lastY = cy;
+  lastX = cx; lastY = cy;
 }
 
 function endDraw() { isDrawing = false; }
@@ -223,6 +243,66 @@ document.querySelectorAll('[data-size]').forEach(btn => {
 
 document.getElementById('colorPicker').addEventListener('input', e => {
   currentColor = e.target.value;
+});
+
+// OCR
+const ocrModal = document.getElementById('ocrModal');
+const ocrStatus = document.getElementById('ocrStatus');
+const ocrText = document.getElementById('ocrText');
+
+document.getElementById('ocrBtn').addEventListener('pointerdown', async e => {
+  e.stopPropagation();
+  ocrModal.classList.add('open');
+  ocrText.value = '';
+  ocrStatus.textContent = 'Preparando imagen...';
+
+  // Combinar fondo + trazos en una imagen limpia
+  const merged = document.createElement('canvas');
+  merged.width = dc.width; merged.height = dc.height;
+  const mCtx = merged.getContext('2d');
+  mCtx.fillStyle = '#ffffff';
+  mCtx.fillRect(0, 0, merged.width, merged.height);
+  mCtx.drawImage(dc, 0, 0);
+
+  try {
+    ocrStatus.textContent = 'Cargando motor OCR...';
+    const worker = await Tesseract.createWorker('spa', 1, {
+      logger: m => {
+        if (m.status === 'recognizing text') {
+          ocrStatus.textContent = 'Reconociendo... ' + Math.round(m.progress * 100) + '%';
+        }
+      }
+    });
+    ocrStatus.textContent = 'Procesando...';
+    const { data: { text } } = await worker.recognize(merged);
+    await worker.terminate();
+    ocrText.removeAttribute('readonly');
+    ocrText.value = text.trim() || '(No se reconoció texto)';
+    ocrStatus.textContent = 'Listo ✓';
+  } catch (err) {
+    ocrStatus.textContent = 'Error: ' + err.message;
+  }
+});
+
+document.getElementById('copyBtn').addEventListener('pointerdown', e => {
+  e.stopPropagation();
+  navigator.clipboard.writeText(ocrText.value).then(() => {
+    ocrStatus.textContent = '¡Copiado al portapapeles!';
+  });
+});
+
+document.getElementById('downloadBtn').addEventListener('pointerdown', e => {
+  e.stopPropagation();
+  const blob = new Blob([ocrText.value], { type: 'text/plain' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'pizarra_texto.txt';
+  a.click();
+});
+
+document.getElementById('closeOcrBtn').addEventListener('pointerdown', e => {
+  e.stopPropagation();
+  ocrModal.classList.remove('open');
 });
 
 window.addEventListener('resize', resizeCanvases);
