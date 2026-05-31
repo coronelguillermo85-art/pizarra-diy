@@ -15,9 +15,8 @@ Una pizarra digital minimalista para móvil, pensada para usar con **lápiz capa
 
 ## Uso
 
-1. Descargá `index.html`
-2. Abrilo desde el explorador de archivos del celu
-3. Listo
+1. Ingresá a https://pizarra-diy.vercel.app/
+
 
 No requiere instalación ni servidor local.
 
