@@ -1,35 +1,42 @@
 # ✎ Pizarra DIY
 
-Una pizarra digital minimalista para móvil, pensada para usar con **lápiz capacitivo común** en Android. Sin dependencias, sin servidor, sin instalación — un solo archivo HTML.
+Una pizarra digital minimalista para móvil, pensada para usar con **lápiz capacitivo de punta disco** en Android. Sin servidor, sin instalación — un solo archivo HTML.
 
 ## ¿Qué hace?
 
 - Dibuja con el dedo o lápiz capacitivo
-- Tres tipos de fondo: **Lisa**, **Rayada** (cuaderno) y **Pentagrama** (música)
+- Tres tipos de fondo: **Lisa**, **Rayada** (cuaderno) y **♪ Pentagrama** (música)
 - Selector de **grosor** (fino / medio / grueso)
 - Selector de **color**
 - Modo **goma de borrar**
+- **OCR** — reconoce texto manuscrito y lo exporta como .txt o portapapeles
 - Se adapta a cualquier tamaño de pantalla
-- Funciona offline, sin internet
+- Funciona offline (excepto la primera vez que usás el OCR)
 
 ## Uso
 
-1. Ingresá a: https://pizarra-diy.vercel.app/
+1. Descargá `index.html`
 2. Abrilo desde el explorador de archivos del celu
 3. Listo
 
 No requiere instalación ni servidor local.
 
+## OCR
+
+Usa [Tesseract.js](https://tesseract.js.org/) con modelo en español. La primera vez descarga el modelo (~10MB), necesitás internet. Después funciona offline. Funciona mejor con letra de imprenta clara.
+
 ## Compatibilidad
 
-Probado en **Motorola Moto G15** (Android). Funciona en cualquier navegador moderno (Chrome, Firefox, Edge). Optimizado para táctil con Pointer Events API — también soporta presión si el lápiz es activo.
+Probado en **Motorola Moto G15** (Android) con lápiz capacitivo de punta disco. Funciona en cualquier navegador moderno (Chrome, Firefox, Edge).
 
 ## Técnico
 
-- HTML + CSS + Canvas API puro
-- Dos capas canvas: fondo (`bgLayer`) + dibujo (`drawCanvas`) — esto resuelve el bug clásico donde el fondo desaparece al redimensionar
-- `touch-action: none` + `stopPropagation` en los controles para que los botones no interfieran con el canvas
-- Borrado real con `globalCompositeOperation: destination-out`
+- HTML5 + CSS + Canvas API + Pointer Events API — sin frameworks, sin dependencias propias
+- Dos capas canvas: `bgLayer` (fondo) + `drawCanvas` (trazos) — resuelve el bug de pérdida de fondo al redimensionar
+- `touch-action: none` + `stopPropagation` en controles para evitar que los botones disparen trazos
+- `globalCompositeOperation: destination-out` para borrado real de píxeles
+- Soporte de presión via `e.pressure` para lápices activos
+- OCR con Tesseract.js v5, imagen preprocesada sobre fondo blanco antes del reconocimiento
 
 ## Licencia
 
