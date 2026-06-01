@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Pizarra DIY</title>
+  <title>Pizarra DIY - Corregida</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     #app { display: flex; flex-direction: column; height: 100vh; width: 100%; background: #1a1a2e; }
@@ -76,22 +76,18 @@
       <span id="saveStatus">✓ guardado</span>
     </div>
     <div class="tb-row">
-      <!-- Grosor -->
       <div class="size-dot active" data-size="3"><div class="dot-inner" style="width:5px;height:5px"></div></div>
       <div class="size-dot" data-size="7"><div class="dot-inner" style="width:9px;height:9px"></div></div>
       <div class="size-dot" data-size="14"><div class="dot-inner" style="width:15px;height:15px"></div></div>
       <input type="color" id="colorPicker" value="#2c2c2a">
       <div class="sep"></div>
-      <!-- Modo -->
       <div class="tb-btn active" data-mode="linea">Línea</div>
       <div class="tb-btn" data-mode="goma">Goma</div>
       <div class="sep"></div>
-      <!-- Fondo -->
       <div class="tb-btn" data-bg="lisa">Lisa</div>
       <div class="tb-btn active" data-bg="rayada">Rayada</div>
       <div class="tb-btn" data-bg="penta">♪</div>
       <div class="sep"></div>
-      <!-- Páginas -->
       <div class="tb-btn page-btn" id="prevBtn">▲</div>
       <span id="pageIndicator">1 / 1</span>
       <div class="tb-btn page-btn" id="nextBtn">▼</div>
@@ -145,7 +141,7 @@ let saveTimer    = null;
 
 // ── Estado de dibujo ─────────────────────────────────────────
 let drawing      = false;
-let activeId     = null; // pointerId activo (-1 = touch)
+let activeId     = null;
 let lastX = 0, lastY = 0;
 
 // ── Resize ───────────────────────────────────────────────────
@@ -170,6 +166,7 @@ function drawBg() {
   bgCtx.fillStyle = '#ecf0f1';
   bgCtx.fillRect(0, 0, w, h);
   if (currentBg === 'lisa') return;
+  
   if (currentBg === 'rayada') {
     bgCtx.strokeStyle = '#bdc3c7'; bgCtx.lineWidth = 1;
     for (let y = 40; y < h; y += 40) {
@@ -177,25 +174,34 @@ function drawBg() {
     }
     return;
   }
+  
   if (currentBg === 'penta') {
     bgCtx.strokeStyle = '#95a5a6'; bgCtx.lineWidth = 1;
+    // Líneas del pentagrama (5 líneas cada 160px)
     for (let base = 60; base < h; base += 160) {
       for (let i = 0; i < 5; i++) {
         const y = base + i * 12;
-        bgCtx.beginPath(); bgCtx.moveTo(0, y); bgCtx.lineTo(w, y); bgCtx.stroke();
+        if (y < h) {
+          bgCtx.beginPath(); bgCtx.moveTo(0, y); bgCtx.lineTo(w, y); bgCtx.stroke();
+        }
       }
     }
   }
 }
 
 // ── Páginas ──────────────────────────────────────────────────
-function savePage() { pages[currentPage] = dc.toDataURL(); }
+function savePage() { 
+  pages[currentPage] = dc.toDataURL(); 
+}
 
 function loadPage(idx) {
   ctx.clearRect(0, 0, dc.width, dc.height);
-  if (pages[idx]) {
+  if (pages[idx] && pages[idx] !== null) {
     const img = new Image();
-    img.onload = () => ctx.drawImage(img, 0, 0);
+    img.onload = () => {
+      ctx.drawImage(img, 0, 0);
+      scheduleSave();
+    };
     img.src = pages[idx];
   }
   pageInd.textContent = (idx + 1) + ' / ' + pages.length;
@@ -203,12 +209,20 @@ function loadPage(idx) {
 
 function doFlash(cb) {
   flash.classList.add('flash');
-  setTimeout(() => { flash.classList.remove('flash'); cb(); }, 150);
+  setTimeout(() => { 
+    flash.classList.remove('flash'); 
+    if (cb) cb();
+  }, 150);
 }
 
 function goPage(idx) {
+  if (idx === currentPage) return;
   savePage();
-  doFlash(() => { currentPage = idx; loadPage(currentPage); scheduleSave(); });
+  doFlash(() => { 
+    currentPage = idx; 
+    loadPage(currentPage); 
+    scheduleSave();
+  });
 }
 
 document.getElementById('prevBtn').addEventListener('pointerdown', e => {
@@ -221,8 +235,13 @@ document.getElementById('nextBtn').addEventListener('pointerdown', e => {
 });
 document.getElementById('addPageBtn').addEventListener('pointerdown', e => {
   e.stopPropagation();
-  savePage(); pages.push(null);
-  doFlash(() => { currentPage = pages.length - 1; loadPage(currentPage); scheduleSave(); });
+  savePage(); 
+  pages.push(null);
+  doFlash(() => { 
+    currentPage = pages.length - 1; 
+    loadPage(currentPage); 
+    scheduleSave();
+  });
 });
 
 // ── Persistencia ─────────────────────────────────────────────
@@ -234,8 +253,10 @@ function scheduleSave() {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ pages, currentPage, currentBg }));
       saveStatus.textContent = '✓ guardado';
-    } catch(e) { saveStatus.textContent = '⚠ sin espacio'; }
-  }, 1500);
+    } catch(e) { 
+      saveStatus.textContent = '⚠ sin espacio'; 
+    }
+  }, 800);
 }
 
 function loadStorage() {
@@ -245,21 +266,29 @@ function loadStorage() {
     const d = JSON.parse(raw);
     pages = d.pages || [null];
     currentPage = d.currentPage || 0;
+    if (currentPage >= pages.length) currentPage = pages.length - 1;
     currentBg = d.currentBg || 'rayada';
     document.querySelectorAll('[data-bg]').forEach(b =>
       b.classList.toggle('active', b.dataset.bg === currentBg));
     return true;
-  } catch(e) { return false; }
+  } catch(e) { 
+    console.warn("Error loading storage", e);
+    return false; 
+  }
 }
 
 // ── Dibujo ────────────────────────────────────────────────────
 function getXY(e) {
   const r = dc.getBoundingClientRect();
-  return [e.clientX - r.left, e.clientY - r.top];
-}
-function getXYTouch(t) {
-  const r = dc.getBoundingClientRect();
-  return [t.clientX - r.left, t.clientY - r.top];
+  let clientX, clientY;
+  if (e.touches) {
+    clientX = e.touches[0].clientX;
+    clientY = e.touches[0].clientY;
+  } else {
+    clientX = e.clientX;
+    clientY = e.clientY;
+  }
+  return [clientX - r.left, clientY - r.top];
 }
 
 function beginStroke(x, y) {
@@ -268,24 +297,47 @@ function beginStroke(x, y) {
   ctx.save();
   ctx.beginPath();
   ctx.globalCompositeOperation = currentMode === 'goma' ? 'destination-out' : 'source-over';
-  ctx.arc(x, y, currentSize * 0.3, 0, Math.PI * 2);
-  ctx.fillStyle = currentMode === 'goma' ? 'rgba(0,0,0,1)' : currentColor;
-  ctx.fill();
+  
+  if (currentMode === 'goma') {
+    // Para la goma, pintamos un punto inicial
+    ctx.arc(x, y, currentSize * 1.2, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(0,0,0,1)';
+    ctx.fill();
+  } else {
+    ctx.arc(x, y, currentSize * 0.4, 0, Math.PI * 2);
+    ctx.fillStyle = currentColor;
+    ctx.fill();
+  }
   ctx.restore();
 }
 
-function continueStroke(x, y, pressure) {
+function continueStroke(x, y, pressure = 0.5) {
   if (!drawing) return;
   ctx.save();
-  ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  ctx.lineJoin = 'round'; 
+  ctx.lineCap = 'round';
   ctx.globalCompositeOperation = currentMode === 'goma' ? 'destination-out' : 'source-over';
-  ctx.strokeStyle = currentMode === 'goma' ? 'rgba(0,0,0,1)' : currentColor;
-  ctx.lineWidth = currentMode === 'goma'
-    ? currentSize * 3
-    : (pressure > 0 ? Math.max(1, pressure * currentSize * 2) : currentSize);
-  ctx.beginPath(); ctx.moveTo(lastX, lastY); ctx.lineTo(x, y); ctx.stroke();
+  
+  let lineWidth;
+  if (currentMode === 'goma') {
+    lineWidth = currentSize * 2.2;
+    ctx.strokeStyle = 'rgba(0,0,0,1)';
+  } else {
+    // Presión: entre 0.5 y 2 veces el tamaño base
+    const pressureFactor = Math.min(2.0, Math.max(0.5, pressure * 1.5));
+    lineWidth = currentSize * pressureFactor;
+    ctx.strokeStyle = currentColor;
+  }
+  
+  ctx.lineWidth = lineWidth;
+  ctx.beginPath(); 
+  ctx.moveTo(lastX, lastY); 
+  ctx.lineTo(x, y); 
+  ctx.stroke();
   ctx.restore();
-  lastX = x; lastY = y;
+  
+  lastX = x; 
+  lastY = y;
 }
 
 function endStroke() {
@@ -294,66 +346,50 @@ function endStroke() {
   scheduleSave();
 }
 
-// Pointer Events
-dc.addEventListener('pointerdown', e => {
-  e.preventDefault();
-  if (drawing) return; // palm rejection: ignorar segundo puntero
-  activeId = e.pointerId;
-  try { dc.setPointerCapture(e.pointerId); } catch(_) {}
-  const [x, y] = getXY(e);
-  beginStroke(x, y);
-}, { passive: false });
-
-dc.addEventListener('pointermove', e => {
-  e.preventDefault();
-  // Si hay presión y no estamos dibujando, arrancar (lápiz suave)
-  if (!drawing && e.buttons > 0) {
-    activeId = e.pointerId;
-    const [x, y] = getXY(e);
-    beginStroke(x, y);
-    return;
-  }
-  if (!drawing || e.pointerId !== activeId) return;
-  const [x, y] = getXY(e);
-  continueStroke(x, y, e.pressure || 0);
-}, { passive: false });
-
-dc.addEventListener('pointerup', e => {
-  if (e.pointerId !== activeId) return;
-  endStroke();
-});
-dc.addEventListener('pointercancel', e => {
-  if (e.pointerId !== activeId) return;
-  endStroke();
-});
-
-// Touch Events (más sensibles en algunos Android)
-dc.addEventListener('touchstart', e => {
+// Eventos táctiles y ratón unificados
+function handlePointerStart(e) {
   e.preventDefault();
   if (drawing) return;
-  activeId = -1; // modo touch
-  const [x, y] = getXYTouch(e.changedTouches[0]);
+  activeId = e.pointerId || 'touch';
+  const [x, y] = getXY(e);
   beginStroke(x, y);
-}, { passive: false });
+}
 
-dc.addEventListener('touchmove', e => {
+function handlePointerMove(e) {
   e.preventDefault();
-  if (!drawing || activeId !== -1) return; // -1 = touch activo, continuar
-  const [x, y] = getXYTouch(e.changedTouches[0]);
-  continueStroke(x, y, 0);
-}, { passive: false });
+  if (!drawing) {
+    // Si hay botón presionado (lápiz o dedo) y no estamos dibujando, comenzamos
+    if (e.buttons === 1 || (e.touches && e.touches.length > 0)) {
+      const [x, y] = getXY(e);
+      beginStroke(x, y);
+      return;
+    }
+    return;
+  }
+  
+  const [x, y] = getXY(e);
+  const pressure = e.pressure !== undefined && e.pressure > 0 ? e.pressure : 0.5;
+  continueStroke(x, y, pressure);
+}
 
-dc.addEventListener('touchend', e => {
-  e.preventDefault();
-  if (activeId !== -1) return; // solo terminar si estamos en modo touch
-  endStroke();
-}, { passive: false });
+function handlePointerEnd(e) {
+  if (drawing) {
+    endStroke();
+  }
+  activeId = null;
+}
 
-dc.addEventListener('touchcancel', e => {
-  e.preventDefault();
-  if (activeId !== -1) return;
-  endStroke();
-}, { passive: false });
+// Puntero (ratón y lápiz)
+dc.addEventListener('pointerdown', handlePointerStart);
+dc.addEventListener('pointermove', handlePointerMove);
+dc.addEventListener('pointerup', handlePointerEnd);
+dc.addEventListener('pointercancel', handlePointerEnd);
+
+// Touch específico para compatibilidad extra
+dc.addEventListener('touchstart', handlePointerStart, { passive: false });
+dc.addEventListener('touchmove', handlePointerMove, { passive: false });
+dc.addEventListener('touchend', handlePointerEnd);
+dc.addEventListener('touchcancel', handlePointerEnd);
 
 // ── Controles toolbar ────────────────────────────────────────
 document.querySelectorAll('[data-bg]').forEach(btn => {
@@ -362,7 +398,8 @@ document.querySelectorAll('[data-bg]').forEach(btn => {
     currentBg = btn.dataset.bg;
     document.querySelectorAll('[data-bg]').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
-    drawBg(); scheduleSave();
+    drawBg(); 
+    scheduleSave();
   });
 });
 
@@ -405,12 +442,15 @@ document.getElementById('ocrBtn').addEventListener('pointerdown', async e => {
   ocrModal.classList.add('open');
   ocrText.value = '';
   ocrStatus.textContent = 'Preparando imagen...';
+  
   const merged = document.createElement('canvas');
-  merged.width = dc.width; merged.height = dc.height;
+  merged.width = dc.width; 
+  merged.height = dc.height;
   const mCtx = merged.getContext('2d');
   mCtx.fillStyle = '#ffffff';
   mCtx.fillRect(0, 0, merged.width, merged.height);
   mCtx.drawImage(dc, 0, 0);
+  
   try {
     ocrStatus.textContent = 'Cargando OCR...';
     const worker = await Tesseract.createWorker('spa', 1, {
@@ -423,7 +463,9 @@ document.getElementById('ocrBtn').addEventListener('pointerdown', async e => {
     await worker.terminate();
     ocrText.value = text.trim() || '(Sin texto reconocido)';
     ocrStatus.textContent = 'Listo ✓';
-  } catch(err) { ocrStatus.textContent = 'Error: ' + err.message; }
+  } catch(err) { 
+    ocrStatus.textContent = 'Error: ' + err.message; 
+  }
 });
 
 document.getElementById('copyBtn').addEventListener('pointerdown', e => {
@@ -435,7 +477,8 @@ document.getElementById('downloadBtn').addEventListener('pointerdown', e => {
   e.stopPropagation();
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([ocrText.value], { type: 'text/plain' }));
-  a.download = 'pizarra_texto.txt'; a.click();
+  a.download = 'pizarra_texto.txt'; 
+  a.click();
 });
 
 document.getElementById('closeOcrBtn').addEventListener('pointerdown', e => {
@@ -447,8 +490,11 @@ document.getElementById('closeOcrBtn').addEventListener('pointerdown', e => {
 resizeCanvases();
 const loaded = loadStorage();
 drawBg();
-if (loaded) loadPage(currentPage);
-else pageInd.textContent = '1 / 1';
+if (loaded) {
+  loadPage(currentPage);
+} else {
+  pageInd.textContent = '1 / 1';
+}
 </script>
 </body>
 </html>
