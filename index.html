@@ -295,7 +295,12 @@ function startDraw(e) {
 }
 
 function doDraw(e) {
-  if (!isDrawing || e.pointerId !== activePointerId) return; // ignorar otros punteros
+  // Si el lápiz se mueve con presión pero no disparó pointerdown, arrancamos igual
+  if (!isDrawing && e.buttons === 1) {
+    startDraw(e);
+    return;
+  }
+  if (!isDrawing || e.pointerId !== activePointerId) return;
   e.preventDefault();
   const [cx, cy] = getPos(e);
   ctx.save();
