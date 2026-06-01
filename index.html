@@ -200,7 +200,9 @@ function doFlash(cb) {
 
 function goPage(idx) {
   savePage();
-  doFlash(() => { currentPage = idx; loadPage(currentPage); scheduleSave(); });
+  currentPage = idx;
+  loadPage(currentPage);
+  scheduleSave();
 }
 
 document.getElementById('prevBtn').addEventListener('pointerdown', e => {
@@ -209,12 +211,24 @@ document.getElementById('prevBtn').addEventListener('pointerdown', e => {
 });
 document.getElementById('nextBtn').addEventListener('pointerdown', e => {
   e.stopPropagation();
-  if (currentPage < pages.length - 1) goPage(currentPage + 1);
+  // Si hay página siguiente, ir. Si no, crear una nueva automaticamente
+  if (currentPage < pages.length - 1) {
+    goPage(currentPage + 1);
+  } else {
+    savePage(); pages.push(null);
+    currentPage = pages.length - 1;
+    ctx.clearRect(0, 0, dc.width, dc.height);
+    pageInd.textContent = (currentPage + 1) + ' / ' + pages.length;
+    scheduleSave();
+  }
 });
 document.getElementById('addPageBtn').addEventListener('pointerdown', e => {
   e.stopPropagation();
   savePage(); pages.push(null);
-  doFlash(() => { currentPage = pages.length - 1; loadPage(currentPage); scheduleSave(); });
+  currentPage = pages.length - 1;
+  ctx.clearRect(0, 0, dc.width, dc.height);
+  pageInd.textContent = (currentPage + 1) + ' / ' + pages.length;
+  scheduleSave();
 });
 
 // ── Persistencia ──────────────────────────────────────────────
@@ -289,7 +303,7 @@ dc.addEventListener('pointermove', e => {
   const [x, y] = getXY(e);
   // Solo dibujar si el lápiz se movió al menos 1px — evita puntos fantasma
   const dist = Math.hypot(x - lastX, y - lastY);
-  if (dist < 1) return;
+  if (dist < 0.5) return;
   ctx.save();
   applyStrokeStyle(e.pressure || 0);
   ctx.beginPath();
@@ -308,6 +322,13 @@ dc.addEventListener('pointerup', e => {
 });
 
 dc.addEventListener('pointercancel', e => {
+  if (e.pointerId !== activeId) return;
+  drawing  = false;
+  activeId = null;
+  scheduleSave();
+});
+
+dc.addEventListener('pointerleave', e => {
   if (e.pointerId !== activeId) return;
   drawing  = false;
   activeId = null;
