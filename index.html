@@ -273,36 +273,27 @@ function getPos(e) {
   return [e.clientX - r.left, e.clientY - r.top];
 }
 
-function startDraw(e) {
-  e.preventDefault();
-  if (isDrawing) return; // ya hay un trazo activo, ignorar palma
-  isDrawing = true;
-  activePointerId = e.pointerId;
-  dc.setPointerCapture(e.pointerId); // captura el puntero para seguirlo aunque salga del canvas
-  [lastX, lastY] = getPos(e);
+function getPosFromTouch(t) {
+  const r = dc.getBoundingClientRect();
+  return [t.clientX - r.left, t.clientY - r.top];
+}
+
+function drawDot(x, y) {
   ctx.save();
   ctx.beginPath();
   if (currentMode === 'goma') {
     ctx.globalCompositeOperation = 'destination-out';
-    ctx.arc(lastX, lastY, currentSize * 1.5, 0, Math.PI * 2);
+    ctx.arc(x, y, currentSize * 1.5, 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(0,0,0,1)'; ctx.fill();
   } else {
     ctx.globalCompositeOperation = 'source-over';
-    ctx.arc(lastX, lastY, currentSize / 2, 0, Math.PI * 2);
+    ctx.arc(x, y, currentSize / 2, 0, Math.PI * 2);
     ctx.fillStyle = currentColor; ctx.fill();
   }
   ctx.restore();
 }
 
-function doDraw(e) {
-  // Si hay cualquier botón presionado (buttons > 0) y no hay trazo activo, arrancamos
-  if (!isDrawing && e.buttons > 0) {
-    startDraw(e);
-    return;
-  }
-  if (!isDrawing || e.pointerId !== activePointerId) return;
-  e.preventDefault();
-  const [cx, cy] = getPos(e);
+function drawLine(x1, y1, x2, y2, pressure) {
   ctx.save();
   ctx.lineJoin = 'round'; ctx.lineCap = 'round';
   if (currentMode === 'goma') {
@@ -312,16 +303,63 @@ function doDraw(e) {
   } else {
     ctx.globalCompositeOperation = 'source-over';
     ctx.strokeStyle = currentColor;
-    ctx.lineWidth = (e.pressure && e.pressure > 0) ? Math.max(1, e.pressure * currentSize * 2) : currentSize;
+    ctx.lineWidth = (pressure && pressure > 0) ? Math.max(1, pressure * currentSize * 2) : currentSize;
   }
-  ctx.beginPath(); ctx.moveTo(lastX, lastY); ctx.lineTo(cx, cy); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
   ctx.restore();
+}
+
+function startDraw(e) {
+  e.preventDefault();
+  if (isDrawing) return;
+  isDrawing = true;
+  activePointerId = e.pointerId;
+  try { dc.setPointerCapture(e.pointerId); } catch(_) {}
+  [lastX, lastY] = getPos(e);
+  drawDot(lastX, lastY);
+}
+
+function doDraw(e) {
+  if (!isDrawing && e.buttons > 0) { startDraw(e); return; }
+  if (!isDrawing || e.pointerId !== activePointerId) return;
+  e.preventDefault();
+  const [cx, cy] = getPos(e);
+  drawLine(lastX, lastY, cx, cy, e.pressure);
   lastX = cx; lastY = cy;
 }
 
 function endDraw(e) {
-  if (e.pointerId !== activePointerId) return;
+  if (e && e.pointerId !== activePointerId) return;
   if (!isDrawing) return;
+  isDrawing = false;
+  activePointerId = null;
+  scheduleSave();
+}
+
+// Touch events en paralelo — más sensibles en algunos Android
+function onTouchStart(e) {
+  e.preventDefault();
+  if (isDrawing) return;
+  // solo primer toque
+  const t = e.changedTouches[0];
+  isDrawing = true;
+  activePointerId = -1; // touch mode
+  [lastX, lastY] = getPosFromTouch(t);
+  drawDot(lastX, lastY);
+}
+
+function onTouchMove(e) {
+  e.preventDefault();
+  if (!isDrawing || activePointerId !== -1) return;
+  const t = e.changedTouches[0];
+  const [cx, cy] = getPosFromTouch(t);
+  drawLine(lastX, lastY, cx, cy, 0);
+  lastX = cx; lastY = cy;
+}
+
+function onTouchEnd(e) {
+  e.preventDefault();
+  if (activePointerId !== -1) return;
   isDrawing = false;
   activePointerId = null;
   scheduleSave();
@@ -332,6 +370,10 @@ dc.addEventListener('pointermove', doDraw, { passive: false });
 dc.addEventListener('pointerenter', e => { if (e.buttons > 0 && !isDrawing) startDraw(e); }, { passive: false });
 dc.addEventListener('pointerup', endDraw);
 dc.addEventListener('pointercancel', endDraw);
+dc.addEventListener('touchstart', onTouchStart, { passive: false });
+dc.addEventListener('touchmove', onTouchMove, { passive: false });
+dc.addEventListener('touchend', onTouchEnd, { passive: false });
+dc.addEventListener('touchcancel', onTouchEnd, { passive: false });
 
 document.getElementById('clearBtn').addEventListener('pointerdown', e => {
   e.stopPropagation();
