@@ -90,9 +90,9 @@
       <div class="tb-btn active" data-bg="rayada">Rayada</div>
       <div class="tb-btn" data-bg="penta">♪</div>
       <div class="sep"></div>
-      <div class="tb-btn page-btn" id="prevBtn">◀</div>
+      <div class="tb-btn page-btn" id="prevBtn">▲</div>
       <span id="pageIndicator">1 / 1</span>
-      <div class="tb-btn page-btn" id="nextBtn">▶</div>
+      <div class="tb-btn page-btn" id="nextBtn">▼</div>
       <div class="tb-btn ocr-btn" id="addPageBtn">+ Pág</div>
       <div class="sep"></div>
       <div class="tb-btn ocr-btn" id="ocrBtn">OCR</div>
@@ -295,8 +295,8 @@ function startDraw(e) {
 }
 
 function doDraw(e) {
-  // Si el lápiz se mueve con presión pero no disparó pointerdown, arrancamos igual
-  if (!isDrawing && e.buttons === 1) {
+  // Si hay cualquier botón presionado (buttons > 0) y no hay trazo activo, arrancamos
+  if (!isDrawing && e.buttons > 0) {
     startDraw(e);
     return;
   }
@@ -329,6 +329,7 @@ function endDraw(e) {
 
 dc.addEventListener('pointerdown', startDraw, { passive: false });
 dc.addEventListener('pointermove', doDraw, { passive: false });
+dc.addEventListener('pointerenter', e => { if (e.buttons > 0 && !isDrawing) startDraw(e); }, { passive: false });
 dc.addEventListener('pointerup', endDraw);
 dc.addEventListener('pointercancel', endDraw);
 
