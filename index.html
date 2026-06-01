@@ -40,7 +40,7 @@
       width: 32px; height: 32px; border-radius: 50%; border: 2px solid #533483;
       padding: 0; cursor: pointer; flex-shrink: 0;
     }
-    #canvas-wrap { flex: 1; position: relative; overflow: hidden; touch-action: none; }
+    #canvas-wrap { flex: 1; position: relative; overflow: hidden; }
     #bgLayer { position: absolute; inset: 0; pointer-events: none; }
     #drawCanvas { position: absolute; inset: 0; touch-action: none; }
     #pageFlash {
@@ -48,7 +48,6 @@
       pointer-events: none; transition: opacity 0.15s; z-index: 10;
     }
     #pageFlash.flash { opacity: 0.4; }
-    /* OCR Modal */
     #ocrModal {
       display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8);
       z-index: 100; align-items: center; justify-content: center; padding: 16px;
@@ -76,22 +75,18 @@
       <span id="saveStatus">✓ guardado</span>
     </div>
     <div class="tb-row">
-      <!-- Grosor -->
       <div class="size-dot active" data-size="3"><div class="dot-inner" style="width:5px;height:5px"></div></div>
       <div class="size-dot" data-size="7"><div class="dot-inner" style="width:9px;height:9px"></div></div>
       <div class="size-dot" data-size="14"><div class="dot-inner" style="width:15px;height:15px"></div></div>
       <input type="color" id="colorPicker" value="#2c2c2a">
       <div class="sep"></div>
-      <!-- Modo -->
       <div class="tb-btn active" data-mode="linea">Línea</div>
       <div class="tb-btn" data-mode="goma">Goma</div>
       <div class="sep"></div>
-      <!-- Fondo -->
       <div class="tb-btn" data-bg="lisa">Lisa</div>
       <div class="tb-btn active" data-bg="rayada">Rayada</div>
       <div class="tb-btn" data-bg="penta">♪</div>
       <div class="sep"></div>
-      <!-- Páginas -->
       <div class="tb-btn page-btn" id="prevBtn">▲</div>
       <span id="pageIndicator">1 / 1</span>
       <div class="tb-btn page-btn" id="nextBtn">▼</div>
@@ -123,7 +118,6 @@
 
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script>
-// ── Referencias ──────────────────────────────────────────────
 const bgCanvas   = document.getElementById('bgLayer');
 const bgCtx      = bgCanvas.getContext('2d');
 const dc         = document.getElementById('drawCanvas');
@@ -133,8 +127,7 @@ const pageInd    = document.getElementById('pageIndicator');
 const flash      = document.getElementById('pageFlash');
 const saveStatus = document.getElementById('saveStatus');
 
-// ── Estado ───────────────────────────────────────────────────
-const STORAGE_KEY = 'pizarra_diy_v2';
+const STORAGE_KEY = 'pizarra_diy_v3';
 let currentBg    = 'rayada';
 let currentMode  = 'linea';
 let currentSize  = 3;
@@ -143,15 +136,14 @@ let pages        = [null];
 let currentPage  = 0;
 let saveTimer    = null;
 
-// ── Estado de dibujo ─────────────────────────────────────────
-let drawing      = false;
-let activeId     = null; // pointerId activo (-1 = touch)
+// Estado de dibujo — UN solo puntero a la vez
+let drawing  = false;
+let activeId = null;
 let lastX = 0, lastY = 0;
 
-// ── Resize ───────────────────────────────────────────────────
+// ── Resize ────────────────────────────────────────────────────
 function resizeCanvases() {
-  const w = wrap.clientWidth;
-  const h = wrap.clientHeight;
+  const w = wrap.clientWidth, h = wrap.clientHeight;
   if (!w || !h) return;
   const tmp = document.createElement('canvas');
   tmp.width = dc.width; tmp.height = dc.height;
@@ -188,7 +180,7 @@ function drawBg() {
   }
 }
 
-// ── Páginas ──────────────────────────────────────────────────
+// ── Páginas ───────────────────────────────────────────────────
 function savePage() { pages[currentPage] = dc.toDataURL(); }
 
 function loadPage(idx) {
@@ -225,7 +217,7 @@ document.getElementById('addPageBtn').addEventListener('pointerdown', e => {
   doFlash(() => { currentPage = pages.length - 1; loadPage(currentPage); scheduleSave(); });
 });
 
-// ── Persistencia ─────────────────────────────────────────────
+// ── Persistencia ──────────────────────────────────────────────
 function scheduleSave() {
   saveStatus.textContent = '...';
   clearTimeout(saveTimer);
@@ -252,110 +244,74 @@ function loadStorage() {
   } catch(e) { return false; }
 }
 
-// ── Dibujo ────────────────────────────────────────────────────
+// ── Dibujo — solo Pointer Events ─────────────────────────────
 function getXY(e) {
   const r = dc.getBoundingClientRect();
   return [e.clientX - r.left, e.clientY - r.top];
 }
-function getXYTouch(t) {
-  const r = dc.getBoundingClientRect();
-  return [t.clientX - r.left, t.clientY - r.top];
+
+function applyStrokeStyle(pressure) {
+  ctx.lineJoin = 'round';
+  ctx.lineCap  = 'round';
+  if (currentMode === 'goma') {
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.strokeStyle = 'rgba(0,0,0,1)';
+    ctx.lineWidth = currentSize * 3;
+  } else {
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.strokeStyle = currentColor;
+    ctx.lineWidth = currentSize;
+  }
 }
 
-function beginStroke(x, y) {
-  drawing = true;
-  lastX = x; lastY = y;
-  ctx.save();
-  ctx.beginPath();
-  ctx.globalCompositeOperation = currentMode === 'goma' ? 'destination-out' : 'source-over';
-  ctx.arc(x, y, currentSize * 0.3, 0, Math.PI * 2);
-  ctx.fillStyle = currentMode === 'goma' ? 'rgba(0,0,0,1)' : currentColor;
-  ctx.fill();
-  ctx.restore();
-}
-
-function continueStroke(x, y, pressure) {
-  if (!drawing) return;
-  ctx.save();
-  ctx.lineJoin = 'round'; ctx.lineCap = 'round';
-  ctx.globalCompositeOperation = currentMode === 'goma' ? 'destination-out' : 'source-over';
-  ctx.strokeStyle = currentMode === 'goma' ? 'rgba(0,0,0,1)' : currentColor;
-  ctx.lineWidth = currentMode === 'goma'
-    ? currentSize * 3
-    : (pressure > 0 ? Math.max(1, pressure * currentSize * 2) : currentSize);
-  ctx.beginPath(); ctx.moveTo(lastX, lastY); ctx.lineTo(x, y); ctx.stroke();
-  ctx.restore();
-  lastX = x; lastY = y;
-}
-
-function endStroke() {
-  drawing = false;
-  activeId = null;
-  scheduleSave();
-}
-
-// Pointer Events
 dc.addEventListener('pointerdown', e => {
-  e.preventDefault();
   if (drawing) return; // palm rejection: ignorar segundo puntero
+  e.preventDefault();
+  drawing  = true;
   activeId = e.pointerId;
   try { dc.setPointerCapture(e.pointerId); } catch(_) {}
   const [x, y] = getXY(e);
-  beginStroke(x, y);
+  lastX = x; lastY = y;
 }, { passive: false });
 
 dc.addEventListener('pointermove', e => {
   e.preventDefault();
-  // Si hay presión y no estamos dibujando, arrancar (lápiz suave)
+  // Si hay presión pero no arrancó pointerdown, iniciar igual
   if (!drawing && e.buttons > 0) {
+    drawing  = true;
     activeId = e.pointerId;
+    try { dc.setPointerCapture(e.pointerId); } catch(_) {}
     const [x, y] = getXY(e);
-    beginStroke(x, y);
+    lastX = x; lastY = y;
     return;
   }
   if (!drawing || e.pointerId !== activeId) return;
   const [x, y] = getXY(e);
-  continueStroke(x, y, e.pressure || 0);
+  ctx.save();
+  applyStrokeStyle(e.pressure || 0);
+  ctx.beginPath();
+  ctx.moveTo(lastX, lastY);
+  ctx.lineTo(x, y);
+  ctx.stroke();
+  ctx.restore();
+  lastX = x; lastY = y;
 }, { passive: false });
 
 dc.addEventListener('pointerup', e => {
   if (e.pointerId !== activeId) return;
-  endStroke();
+  drawing  = false;
+  activeId = null;
+  scheduleSave();
 });
+
 dc.addEventListener('pointercancel', e => {
   if (e.pointerId !== activeId) return;
-  endStroke();
+  drawing  = false;
+  activeId = null;
+  scheduleSave();
 });
 
-// Touch Events (más sensibles en algunos Android)
-dc.addEventListener('touchstart', e => {
-  e.preventDefault();
-  if (drawing) return;
-  activeId = -1; // modo touch
-  const [x, y] = getXYTouch(e.changedTouches[0]);
-  beginStroke(x, y);
-}, { passive: false });
-
-dc.addEventListener('touchmove', e => {
-  e.preventDefault();
-  if (!drawing || activeId !== -1) return; // -1 = touch activo, continuar
-  const [x, y] = getXYTouch(e.changedTouches[0]);
-  continueStroke(x, y, 0);
-}, { passive: false });
-
-dc.addEventListener('touchend', e => {
-  e.preventDefault();
-  if (activeId !== -1) return; // solo terminar si estamos en modo touch
-  endStroke();
-}, { passive: false });
-
-dc.addEventListener('touchcancel', e => {
-  e.preventDefault();
-  if (activeId !== -1) return;
-  endStroke();
-}, { passive: false });
-
-// ── Controles toolbar ────────────────────────────────────────
+// ── Controles ─────────────────────────────────────────────────
 document.querySelectorAll('[data-bg]').forEach(btn => {
   btn.addEventListener('pointerdown', e => {
     e.stopPropagation();
@@ -395,7 +351,7 @@ document.getElementById('clearBtn').addEventListener('pointerdown', e => {
   scheduleSave();
 });
 
-// ── OCR ──────────────────────────────────────────────────────
+// ── OCR ───────────────────────────────────────────────────────
 const ocrModal  = document.getElementById('ocrModal');
 const ocrStatus = document.getElementById('ocrStatus');
 const ocrText   = document.getElementById('ocrText');
@@ -404,7 +360,7 @@ document.getElementById('ocrBtn').addEventListener('pointerdown', async e => {
   e.stopPropagation();
   ocrModal.classList.add('open');
   ocrText.value = '';
-  ocrStatus.textContent = 'Preparando imagen...';
+  ocrStatus.textContent = 'Preparando...';
   const merged = document.createElement('canvas');
   merged.width = dc.width; merged.height = dc.height;
   const mCtx = merged.getContext('2d');
@@ -443,7 +399,7 @@ document.getElementById('closeOcrBtn').addEventListener('pointerdown', e => {
   ocrModal.classList.remove('open');
 });
 
-// ── Init ─────────────────────────────────────────────────────
+// ── Init ──────────────────────────────────────────────────────
 resizeCanvases();
 const loaded = loadStorage();
 drawBg();
