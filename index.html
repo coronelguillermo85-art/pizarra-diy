@@ -265,18 +265,18 @@ function applyStrokeStyle(pressure) {
 }
 
 dc.addEventListener('pointerdown', e => {
-  if (drawing) return; // palm rejection: ignorar segundo puntero
+  if (drawing) return;
   e.preventDefault();
   drawing  = true;
   activeId = e.pointerId;
   try { dc.setPointerCapture(e.pointerId); } catch(_) {}
   const [x, y] = getXY(e);
   lastX = x; lastY = y;
+  // Solo marcamos posicion, no dibujamos nada todavia
 }, { passive: false });
 
 dc.addEventListener('pointermove', e => {
   e.preventDefault();
-  // Si hay presión pero no arrancó pointerdown, iniciar igual
   if (!drawing && e.buttons > 0) {
     drawing  = true;
     activeId = e.pointerId;
@@ -287,6 +287,9 @@ dc.addEventListener('pointermove', e => {
   }
   if (!drawing || e.pointerId !== activeId) return;
   const [x, y] = getXY(e);
+  // Solo dibujar si el lápiz se movió al menos 1px — evita puntos fantasma
+  const dist = Math.hypot(x - lastX, y - lastY);
+  if (dist < 1) return;
   ctx.save();
   applyStrokeStyle(e.pressure || 0);
   ctx.beginPath();
