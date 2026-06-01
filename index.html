@@ -2,448 +2,400 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Pizarra DIY</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Pizarra DIY - Lápiz perfecto</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    #app { display: flex; flex-direction: column; height: 100vh; width: 100%; background: #1a1a2e; }
+    body { overflow: hidden; height: 100vh; width: 100vw; position: fixed; }
+    #app { display: flex; flex-direction: column; height: 100vh; width: 100%; }
     #toolbar {
-      display: flex; align-items: center; flex-wrap: wrap;
-      padding: 8px 12px; background: #16213e; border-bottom: 0.5px solid #0f3460;
-      flex-shrink: 0; gap: 8px; user-select: none; touch-action: none;
+      background: #16213e; padding: 8px 10px;
+      display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+      user-select: none; flex-shrink: 0;
     }
-    #toolbar-title { color: #e0e0ff; font-size: 14px; font-weight: 500; font-family: sans-serif; letter-spacing: 1px; }
-    #saveStatus { color: #a78bfa; font-size: 11px; font-family: sans-serif; }
-    .tb-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-    .tb-btn {
-      background: #0f3460; color: #e0e0ff; border: 0.5px solid #533483;
-      border-radius: 8px; padding: 8px 14px; font-size: 13px; font-weight: 500;
-      cursor: pointer; font-family: sans-serif; -webkit-tap-highlight-color: transparent;
-      touch-action: manipulation; min-height: 36px; user-select: none;
+    .btn {
+      background: #0f3460; color: #e0e0ff; border: 1px solid #533483;
+      border-radius: 6px; padding: 7px 12px; font-size: 13px; font-family: sans-serif;
+      cursor: pointer; -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation; user-select: none;
     }
-    .tb-btn:active { background: #533483; }
-    .tb-btn.active { background: #533483; border-color: #a78bfa; }
-    .tb-btn.danger { background: #3d0c0c; border-color: #e74c3c; color: #ffaaaa; }
-    .tb-btn.ocr-btn { background: #0d3d2e; border-color: #1abc9c; color: #aafce8; }
-    .tb-btn.page-btn { font-size: 16px; padding: 8px 12px; }
-    .sep { width: 0.5px; height: 24px; background: #0f3460; flex-shrink: 0; }
-    #pageIndicator { color: #a78bfa; font-size: 13px; font-family: sans-serif; font-weight: 600; min-width: 44px; text-align: center; }
-    .size-dot {
-      width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center;
-      justify-content: center; cursor: pointer; background: #0f3460;
-      border: 0.5px solid #533483; -webkit-tap-highlight-color: transparent;
-      touch-action: manipulation; flex-shrink: 0;
+    .btn.on  { background: #533483; border-color: #a78bfa; }
+    .btn.red { background: #3d0c0c; border-color: #e74c3c; color: #ffaaaa; }
+    .btn.grn { background: #0d3d2e; border-color: #1abc9c; color: #aafce8; }
+    .dot {
+      width: 26px; height: 26px; border-radius: 50%;
+      background: #0f3460; border: 1px solid #533483;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
     }
-    .size-dot.active { border-color: #a78bfa; background: #533483; }
-    .dot-inner { background: #e0e0ff; border-radius: 50%; pointer-events: none; }
-    #colorPicker {
-      width: 32px; height: 32px; border-radius: 50%; border: 2px solid #533483;
-      padding: 0; cursor: pointer; flex-shrink: 0;
+    .dot.on { background: #533483; border-color: #a78bfa; }
+    .di { background: #e0e0ff; border-radius: 50%; pointer-events: none; }
+    #cp {
+      width: 30px; height: 30px; border-radius: 50%;
+      border: 2px solid #533483; padding: 0; cursor: pointer;
     }
-    #canvas-wrap { flex: 1; position: relative; overflow-y: scroll; overflow-x: hidden; }
-    #bgLayer { position: absolute; top: 0; left: 0; pointer-events: none; }
-    #drawCanvas { position: absolute; top: 0; left: 0; touch-action: pan-y; }
-    #pageFlash {
-      position: absolute; inset: 0; background: white; opacity: 0;
-      pointer-events: none; transition: opacity 0.15s; z-index: 10;
-    }
-    #pageFlash.flash { opacity: 0.4; }
-    #ocrModal {
-      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8);
-      z-index: 100; align-items: center; justify-content: center; padding: 16px;
-    }
-    #ocrModal.open { display: flex; }
-    #ocrBox {
-      background: #16213e; border: 0.5px solid #533483; border-radius: 12px;
-      padding: 20px; width: 100%; max-width: 420px; display: flex; flex-direction: column; gap: 12px;
-    }
-    #ocrBox h2 { color: #e0e0ff; font-size: 15px; font-family: sans-serif; font-weight: 500; }
-    #ocrStatus { color: #aafce8; font-size: 13px; font-family: sans-serif; }
-    #ocrText {
-      background: #0f1923; color: #e0e0ff; border: 0.5px solid #533483;
-      border-radius: 8px; padding: 12px; font-size: 14px; font-family: sans-serif;
-      min-height: 100px; resize: vertical; width: 100%; outline: none;
-    }
-    .ocr-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    #pi { color: #a78bfa; font-size: 13px; font-family: sans-serif; font-weight: 600; min-width: 40px; text-align: center; }
+    #ss { color: #a78bfa; font-size: 11px; font-family: sans-serif; }
+    #wrap { flex: 1; position: relative; background: #ecf0f1; overflow: hidden; touch-action: none; }
+    canvas { position: absolute; top: 0; left: 0; }
+    #bg { pointer-events: none; }
+    #cv { touch-action: none; }
   </style>
 </head>
 <body>
 <div id="app">
   <div id="toolbar">
-    <div class="tb-row">
-      <span id="toolbar-title">✎ PIZARRA</span>
-      <span id="saveStatus">✓ guardado</span>
-    </div>
-    <div class="tb-row">
-      <div class="size-dot active" data-size="3"><div class="dot-inner" style="width:5px;height:5px"></div></div>
-      <div class="size-dot" data-size="7"><div class="dot-inner" style="width:9px;height:9px"></div></div>
-      <div class="size-dot" data-size="14"><div class="dot-inner" style="width:15px;height:15px"></div></div>
-      <input type="color" id="colorPicker" value="#2c2c2a">
-      <div class="sep"></div>
-      <div class="tb-btn active" data-mode="linea">Línea</div>
-      <div class="tb-btn" data-mode="goma">Goma</div>
-      <div class="sep"></div>
-      <div class="tb-btn" data-bg="lisa">Lisa</div>
-      <div class="tb-btn active" data-bg="rayada">Rayada</div>
-      <div class="tb-btn" data-bg="penta">♪</div>
-      <div class="sep"></div>
-      <div class="tb-btn page-btn" id="prevBtn">▲</div>
-      <span id="pageIndicator">1 / 1</span>
-      <div class="tb-btn page-btn" id="nextBtn">▼</div>
-      <div class="tb-btn ocr-btn" id="addPageBtn">+ Pág</div>
-      <div class="tb-btn" id="scrollModeBtn">☰ Scroll</div>
-      <div class="sep"></div>
-      <div class="tb-btn ocr-btn" id="ocrBtn">OCR</div>
-      <div class="tb-btn danger" id="clearBtn">Borrar</div>
-    </div>
+    <span style="color:#e0e0ff;font-size:13px;font-family:sans-serif;font-weight:500">✎ PIZARRA</span>
+    <span id="ss">✓</span>
+    <div class="dot on" data-sz="3"><div class="di" style="width:4px;height:4px"></div></div>
+    <div class="dot"    data-sz="7"><div class="di" style="width:8px;height:8px"></div></div>
+    <div class="dot"    data-sz="14"><div class="di" style="width:13px;height:13px"></div></div>
+    <input type="color" id="cp" value="#1a1a2e">
+    <div class="btn on"  data-md="draw">Lápiz</div>
+    <div class="btn"     data-md="erase">Goma</div>
+    <div class="btn"     data-bg="lisa">Lisa</div>
+    <div class="btn on"  data-bg="ray">Rayada</div>
+    <div class="btn"     data-bg="penta">♪</div>
+    <div class="btn"     id="pb">◀</div>
+    <span id="pi">1/1</span>
+    <div class="btn"     id="nb">▶</div>
+    <div class="btn grn" id="ap">+Pág</div>
+    <div class="btn grn" id="ob">OCR</div>
+    <div class="btn red" id="cb">Borrar</div>
   </div>
-  <div id="canvas-wrap">
-    <canvas id="bgLayer"></canvas>
-    <canvas id="drawCanvas"></canvas>
-    <div id="pageFlash"></div>
+  <div id="wrap">
+    <canvas id="bg"></canvas>
+    <canvas id="cv"></canvas>
   </div>
 </div>
 
-<div id="ocrModal">
-  <div id="ocrBox">
-    <h2>Texto reconocido</h2>
-    <div id="ocrStatus"></div>
-    <textarea id="ocrText" placeholder="El texto aparece acá..."></textarea>
-    <div class="ocr-actions">
-      <div class="tb-btn ocr-btn" id="copyBtn">Copiar</div>
-      <div class="tb-btn ocr-btn" id="downloadBtn">Descargar .txt</div>
-      <div class="tb-btn danger" id="closeOcrBtn">Cerrar</div>
+<!-- OCR modal -->
+<div id="om" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:99;align-items:center;justify-content:center;padding:16px">
+  <div style="background:#16213e;border:1px solid #533483;border-radius:10px;padding:16px;width:100%;max-width:400px;display:flex;flex-direction:column;gap:10px">
+    <div id="os" style="color:#aafce8;font-size:13px;font-family:sans-serif"></div>
+    <textarea id="ot" style="background:#0f1923;color:#e0e0ff;border:1px solid #533483;border-radius:6px;padding:10px;font-size:13px;font-family:sans-serif;min-height:100px;width:100%;outline:none;resize:vertical"></textarea>
+    <div style="display:flex;gap:8px">
+      <div class="btn grn" id="cpy">Copiar</div>
+      <div class="btn grn" id="dl">Bajar .txt</div>
+      <div class="btn red" id="cl">Cerrar</div>
     </div>
   </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script>
-const bgCanvas   = document.getElementById('bgLayer');
-const bgCtx      = bgCanvas.getContext('2d');
-const dc         = document.getElementById('drawCanvas');
-const ctx        = dc.getContext('2d');
-const wrap       = document.getElementById('canvas-wrap');
-const pageInd    = document.getElementById('pageIndicator');
-const flash      = document.getElementById('pageFlash');
-const saveStatus = document.getElementById('saveStatus');
+// elementos
+const bgc = document.getElementById('bg');
+const bx  = bgc.getContext('2d');
+const cv  = document.getElementById('cv');
+const cx  = cv.getContext('2d');
+const wr  = document.getElementById('wrap');
+const pi  = document.getElementById('pi');
+const ss  = document.getElementById('ss');
 
-const STORAGE_KEY = 'pizarra_diy_v3';
-let currentBg    = 'rayada';
-let currentMode  = 'linea';
-let currentSize  = 3;
-let currentColor = '#2c2c2a';
-let pages        = [null];
-let currentPage  = 0;
-let saveTimer    = null;
+// estado
+let bg   = 'ray';
+let md   = 'draw';
+let sz   = 3;
+let col  = '#1a1a2e';
+let pages = [null];
+let pg   = 0;
+let svT  = null;
+let necesitaGuardar = false;  // ← NUEVO: guardado diferido sin bloquear
 
-// Estado de dibujo — UN solo puntero a la vez
-let drawing  = false;
-let activeId = null;
-let lastX = 0, lastY = 0;
+// dibujo
+let on = false;
+let aid = null;
+let lx = 0, ly = 0;
+let ultimoMovimiento = 0;  // ← NUEVO: para throttle suave
 
-// ── Resize ────────────────────────────────────────────────────
-const CANVAS_HEIGHT = 5000; // hoja larga
-
-function resizeCanvases() {
-  const w = wrap.clientWidth;
-  if (!w) return;
-  const tmp = document.createElement('canvas');
-  tmp.width = dc.width; tmp.height = dc.height;
-  if (dc.width > 0 && dc.height > 0) tmp.getContext('2d').drawImage(dc, 0, 0);
-  dc.width = w; dc.height = CANVAS_HEIGHT;
-  bgCanvas.width = w; bgCanvas.height = CANVAS_HEIGHT;
-  if (tmp.width > 0 && tmp.height > 0) ctx.drawImage(tmp, 0, 0);
+// resize
+function resize() {
+  const w = wr.clientWidth, h = wr.clientHeight;
+  if (!w || !h) return;
+  const t = document.createElement('canvas');
+  t.width = cv.width; t.height = cv.height;
+  if (cv.width && cv.height) t.getContext('2d').drawImage(cv, 0, 0);
+  cv.width  = bgc.width  = w;
+  cv.height = bgc.height = h;
+  if (t.width && t.height) cx.drawImage(t, 0, 0);
   drawBg();
 }
-window.addEventListener('resize', resizeCanvases);
+window.addEventListener('resize', resize);
+setTimeout(resize, 100);
 
-// ── Fondo ─────────────────────────────────────────────────────
+// fondo
 function drawBg() {
-  const w = bgCanvas.width, h = bgCanvas.height;
-  bgCtx.clearRect(0, 0, w, h);
-  bgCtx.fillStyle = '#ecf0f1';
-  bgCtx.fillRect(0, 0, w, h);
-  if (currentBg === 'lisa') return;
-  if (currentBg === 'rayada') {
-    bgCtx.strokeStyle = '#bdc3c7'; bgCtx.lineWidth = 1;
-    for (let y = 40; y < h; y += 40) {
-      bgCtx.beginPath(); bgCtx.moveTo(0, y); bgCtx.lineTo(w, y); bgCtx.stroke();
-    }
+  const w = bgc.width, h = bgc.height;
+  bx.fillStyle = '#ecf0f1';
+  bx.fillRect(0, 0, w, h);
+  if (bg === 'lisa') return;
+  if (bg === 'ray') {
+    bx.strokeStyle = '#bdc3c7'; bx.lineWidth = 1;
+    for (let y = 40; y < h; y += 40) { bx.beginPath(); bx.moveTo(0,y); bx.lineTo(w,y); bx.stroke(); }
     return;
   }
-  if (currentBg === 'penta') {
-    bgCtx.strokeStyle = '#95a5a6'; bgCtx.lineWidth = 1;
-    for (let base = 60; base < h; base += 160) {
-      for (let i = 0; i < 5; i++) {
-        const y = base + i * 12;
-        bgCtx.beginPath(); bgCtx.moveTo(0, y); bgCtx.lineTo(w, y); bgCtx.stroke();
+  bx.strokeStyle = '#95a5a6'; bx.lineWidth = 1;
+  for (let b = 60; b < h; b += 160)
+    for (let i = 0; i < 5; i++) { bx.beginPath(); bx.moveTo(0, b+i*12); bx.lineTo(w, b+i*12); bx.stroke(); }
+}
+
+// páginas - GUARDADO SILENCIOSO QUE NO BLOQUEA
+function save() { 
+  pages[pg] = cv.toDataURL(); 
+}
+
+function persistirSilencioso() {
+  // Solo marca que hay que guardar, no ejecuta inmediatamente
+  necesitaGuardar = true;
+  ss.textContent = '...';
+  
+  clearTimeout(svT);
+  svT = setTimeout(() => {
+    if (necesitaGuardar) {
+      save();
+      try { 
+        localStorage.setItem('piz_v4', JSON.stringify({pages, pg, bg})); 
+        ss.textContent = '✓';
+        necesitaGuardar = false;
+      } catch(e) { 
+        ss.textContent = '⚠'; 
       }
     }
+  }, 1500);  // ← más lento para no interferir
+}
+
+function guardadoInmediato() {
+  save();
+  try { 
+    localStorage.setItem('piz_v4', JSON.stringify({pages, pg, bg})); 
+    ss.textContent = '✓';
+  } catch(e) { 
+    ss.textContent = '⚠'; 
   }
+  necesitaGuardar = false;
+  clearTimeout(svT);
 }
 
-// ── Páginas ───────────────────────────────────────────────────
-function savePage() { pages[currentPage] = dc.toDataURL(); }
+function load(i)  {
+  cx.clearRect(0, 0, cv.width, cv.height);
+  if (pages[i]) { const im = new Image(); im.onload = () => cx.drawImage(im, 0, 0); im.src = pages[i]; }
+  pi.textContent = (i+1) + '/' + pages.length;
+}
 
-function loadPage(idx) {
-  ctx.clearRect(0, 0, dc.width, dc.height);
-  if (pages[idx]) {
-    const img = new Image();
-    img.onload = () => ctx.drawImage(img, 0, 0);
-    img.src = pages[idx];
+document.getElementById('pb').addEventListener('pointerdown', e => {
+  e.stopPropagation(); 
+  if (pg > 0) { 
+    save(); 
+    pg--; 
+    load(pg); 
+    guardadoInmediato();
   }
-  pageInd.textContent = (idx + 1) + ' / ' + pages.length;
-}
-
-function doFlash(cb) {
-  flash.classList.add('flash');
-  setTimeout(() => { flash.classList.remove('flash'); cb(); }, 150);
-}
-
-function goPage(idx) {
-  savePage();
-  currentPage = idx;
-  loadPage(currentPage);
-  scheduleSave();
-}
-
-document.getElementById('prevBtn').addEventListener('pointerdown', e => {
-  e.stopPropagation();
-  if (currentPage > 0) goPage(currentPage - 1);
 });
-document.getElementById('nextBtn').addEventListener('pointerdown', e => {
-  e.stopPropagation();
-  // Si hay página siguiente, ir. Si no, crear una nueva automaticamente
-  if (currentPage < pages.length - 1) {
-    goPage(currentPage + 1);
+document.getElementById('nb').addEventListener('pointerdown', e => {
+  e.stopPropagation(); 
+  save();
+  if (pg < pages.length - 1) { 
+    pg++; 
+  } else { 
+    pages.push(null); 
+    pg = pages.length - 1; 
+  }
+  load(pg); 
+  guardadoInmediato();
+});
+document.getElementById('ap').addEventListener('pointerdown', e => {
+  e.stopPropagation(); 
+  save(); 
+  pages.push(null); 
+  pg = pages.length - 1; 
+  load(pg); 
+  guardadoInmediato();
+});
+
+// ========== DIBUJO CORREGIDO - SIN INTERFERENCIA DEL GUARDADO ==========
+function xy(e) {
+  const r = cv.getBoundingClientRect();
+  let clientX, clientY;
+  if (e.touches) {
+    clientX = e.touches[0].clientX;
+    clientY = e.touches[0].clientY;
   } else {
-    savePage(); pages.push(null);
-    currentPage = pages.length - 1;
-    ctx.clearRect(0, 0, dc.width, dc.height);
-    pageInd.textContent = (currentPage + 1) + ' / ' + pages.length;
-    scheduleSave();
+    clientX = e.clientX;
+    clientY = e.clientY;
   }
-});
-document.getElementById('addPageBtn').addEventListener('pointerdown', e => {
-  e.stopPropagation();
-  savePage(); pages.push(null);
-  currentPage = pages.length - 1;
-  ctx.clearRect(0, 0, dc.width, dc.height);
-  pageInd.textContent = (currentPage + 1) + ' / ' + pages.length;
-  scheduleSave();
-});
-
-// ── Persistencia ──────────────────────────────────────────────
-function scheduleSave() {
-  saveStatus.textContent = '...';
-  clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    savePage();
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ pages, currentPage, currentBg }));
-      saveStatus.textContent = '✓ guardado';
-    } catch(e) { saveStatus.textContent = '⚠ sin espacio'; }
-  }, 1500);
+  return [clientX - r.left, clientY - r.top];
 }
 
-function loadStorage() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return false;
-    const d = JSON.parse(raw);
-    pages = d.pages || [null];
-    currentPage = d.currentPage || 0;
-    currentBg = d.currentBg || 'rayada';
-    document.querySelectorAll('[data-bg]').forEach(b =>
-      b.classList.toggle('active', b.dataset.bg === currentBg));
-    return true;
-  } catch(e) { return false; }
-}
-
-// ── Dibujo — solo Pointer Events ─────────────────────────────
-function getXY(e) {
-  const r = dc.getBoundingClientRect();
-  return [e.clientX - r.left, e.clientY - r.top + wrap.scrollTop];
-}
-
-let scrollMode = false;
-
-document.getElementById('scrollModeBtn').addEventListener('pointerdown', e => {
-  e.stopPropagation();
-  scrollMode = !scrollMode;
-  dc.style.touchAction = scrollMode ? 'pan-y' : 'none';
-  document.getElementById('scrollModeBtn').classList.toggle('active', scrollMode);
-  document.getElementById('scrollModeBtn').textContent = scrollMode ? '✎ Dibujar' : '☰ Scroll';
-});
-
-function applyStrokeStyle(pressure) {
-  ctx.lineJoin = 'round';
-  ctx.lineCap  = 'round';
-  if (currentMode === 'goma') {
-    ctx.globalCompositeOperation = 'destination-out';
-    ctx.strokeStyle = 'rgba(0,0,0,1)';
-    ctx.lineWidth = currentSize * 3;
+function iniciarTrazo(x, y) {
+  on = true;
+  lx = x; ly = y;
+  cx.save();
+  cx.beginPath();
+  cx.globalCompositeOperation = md === 'erase' ? 'destination-out' : 'source-over';
+  
+  if (md === 'erase') {
+    cx.arc(x, y, sz * 1.5, 0, Math.PI * 2);
+    cx.fillStyle = 'rgba(0,0,0,1)';
+    cx.fill();
   } else {
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.strokeStyle = currentColor;
-    ctx.lineWidth = currentSize;
+    cx.arc(x, y, sz * 0.4, 0, Math.PI * 2);
+    cx.fillStyle = col;
+    cx.fill();
+  }
+  cx.restore();
+}
+
+function dibujarTrazo(x, y, pressure = 0.5) {
+  if (!on) return;
+  
+  cx.save();
+  cx.lineJoin = 'round';
+  cx.lineCap = 'round';
+  cx.globalCompositeOperation = md === 'erase' ? 'destination-out' : 'source-over';
+  
+  let lineWidth;
+  if (md === 'erase') {
+    lineWidth = sz * 2.5;
+    cx.strokeStyle = 'rgba(0,0,0,1)';
+  } else {
+    // Presión: entre 0.4x y 2.2x el tamaño base
+    let pressureFactor = Math.min(2.2, Math.max(0.4, pressure * 1.8));
+    if (pressure === 0.5 && e.pressure === undefined) pressureFactor = 1.0;
+    lineWidth = sz * pressureFactor;
+    cx.strokeStyle = col;
+  }
+  
+  cx.lineWidth = lineWidth;
+  cx.beginPath();
+  cx.moveTo(lx, ly);
+  cx.lineTo(x, y);
+  cx.stroke();
+  cx.restore();
+  
+  lx = x;
+  ly = y;
+}
+
+function finalizarTrazo() {
+  if (on) {
+    on = false;
+    aid = null;
+    persistirSilencioso();  // ← guardado diferido, NO bloquea
   }
 }
 
-dc.addEventListener('pointerdown', e => {
-  if (scrollMode) return;
-  if (drawing) return;
+// POINTER EVENTS (para lápiz con presión)
+cv.addEventListener('pointerdown', (e) => {
   e.preventDefault();
-  drawing  = true;
-  activeId = e.pointerId;
-  try { dc.setPointerCapture(e.pointerId); } catch(_) {}
-  const [x, y] = getXY(e);
-  lastX = x; lastY = y;
-  // Solo marcamos posicion, no dibujamos nada todavia
+  if (on) return;
+  aid = e.pointerId;
+  try { cv.setPointerCapture(e.pointerId); } catch(_) {}
+  const [x, y] = xy(e);
+  iniciarTrazo(x, y);
 }, { passive: false });
 
-dc.addEventListener('pointermove', e => {
-  if (scrollMode) return;
+cv.addEventListener('pointermove', (e) => {
   e.preventDefault();
-  if (!drawing && e.buttons > 0) {
-    drawing  = true;
-    activeId = e.pointerId;
-    try { dc.setPointerCapture(e.pointerId); } catch(_) {}
-    const [x, y] = getXY(e);
-    lastX = x; lastY = y;
+  
+  // Si el lápiz está presionando pero no iniciamos (caso borde)
+  if (!on && e.buttons === 1) {
+    aid = e.pointerId;
+    const [x, y] = xy(e);
+    iniciarTrazo(x, y);
     return;
   }
-  if (!drawing || e.pointerId !== activeId) return;
-  const [x, y] = getXY(e);
-  // Solo dibujar si el lápiz se movió al menos 1px — evita puntos fantasma
-  const dist = Math.hypot(x - lastX, y - lastY);
-  if (dist < 0.5) return;
-  ctx.save();
-  applyStrokeStyle(e.pressure || 0);
-  ctx.beginPath();
-  ctx.moveTo(lastX, lastY);
-  ctx.lineTo(x, y);
-  ctx.stroke();
-  ctx.restore();
-  lastX = x; lastY = y;
+  
+  if (!on || e.pointerId !== aid) return;
+  
+  const [x, y] = xy(e);
+  let pressure = e.pressure;
+  // Si el dispositivo no da presión, usar 0.7 por defecto
+  if (!pressure || pressure === 0) pressure = 0.7;
+  dibujarTrazo(x, y, pressure);
 }, { passive: false });
 
-dc.addEventListener('pointerup', e => {
-  if (e.pointerId !== activeId) return;
-  drawing  = false;
-  activeId = null;
-  scheduleSave();
+cv.addEventListener('pointerup', (e) => {
+  if (e.pointerId === aid || aid === null) finalizarTrazo();
+});
+cv.addEventListener('pointercancel', (e) => {
+  if (e.pointerId === aid || aid === null) finalizarTrazo();
 });
 
-dc.addEventListener('pointercancel', e => {
-  if (e.pointerId !== activeId) return;
-  drawing  = false;
-  activeId = null;
-  scheduleSave();
+// TOUCH EVENTS (respaldo para dedo)
+cv.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  if (on) return;
+  aid = 'touch';
+  const [x, y] = xy(e);
+  iniciarTrazo(x, y);
+}, { passive: false });
+
+cv.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  if (!on || aid !== 'touch') return;
+  const [x, y] = xy(e);
+  dibujarTrazo(x, y, 0.6);
+}, { passive: false });
+
+cv.addEventListener('touchend', (e) => {
+  e.preventDefault();
+  if (aid === 'touch') finalizarTrazo();
+});
+cv.addEventListener('touchcancel', (e) => {
+  e.preventDefault();
+  if (aid === 'touch') finalizarTrazo();
 });
 
-dc.addEventListener('pointerleave', e => {
-  if (e.pointerId !== activeId) return;
-  drawing  = false;
-  activeId = null;
-  scheduleSave();
+// controles
+document.querySelectorAll('[data-sz]').forEach(b => b.addEventListener('pointerdown', e => {
+  e.stopPropagation(); sz = +b.dataset.sz;
+  document.querySelectorAll('[data-sz]').forEach(x => x.classList.remove('on')); b.classList.add('on');
+}));
+document.querySelectorAll('[data-md]').forEach(b => b.addEventListener('pointerdown', e => {
+  e.stopPropagation(); md = b.dataset.md;
+  document.querySelectorAll('[data-md]').forEach(x => x.classList.remove('on')); b.classList.add('on');
+}));
+document.querySelectorAll('[data-bg]').forEach(b => b.addEventListener('pointerdown', e => {
+  e.stopPropagation(); bg = b.dataset.bg;
+  document.querySelectorAll('[data-bg]').forEach(x => x.classList.remove('on')); b.classList.add('on');
+  drawBg(); guardadoInmediato();
+}));
+document.getElementById('cp').addEventListener('input', e => col = e.target.value);
+document.getElementById('cb').addEventListener('pointerdown', e => {
+  e.stopPropagation(); cx.clearRect(0,0,cv.width,cv.height); pages[pg]=null; guardadoInmediato();
 });
 
-// ── Controles ─────────────────────────────────────────────────
-document.querySelectorAll('[data-bg]').forEach(btn => {
-  btn.addEventListener('pointerdown', e => {
-    e.stopPropagation();
-    currentBg = btn.dataset.bg;
-    document.querySelectorAll('[data-bg]').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    drawBg(); scheduleSave();
-  });
-});
-
-document.querySelectorAll('[data-mode]').forEach(btn => {
-  btn.addEventListener('pointerdown', e => {
-    e.stopPropagation();
-    currentMode = btn.dataset.mode;
-    document.querySelectorAll('[data-mode]').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-  });
-});
-
-document.querySelectorAll('[data-size]').forEach(btn => {
-  btn.addEventListener('pointerdown', e => {
-    e.stopPropagation();
-    currentSize = parseInt(btn.dataset.size);
-    document.querySelectorAll('[data-size]').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-  });
-});
-
-document.getElementById('colorPicker').addEventListener('input', e => {
-  currentColor = e.target.value;
-});
-
-document.getElementById('clearBtn').addEventListener('pointerdown', e => {
-  e.stopPropagation();
-  ctx.clearRect(0, 0, dc.width, dc.height);
-  pages[currentPage] = null;
-  scheduleSave();
-});
-
-// ── OCR ───────────────────────────────────────────────────────
-const ocrModal  = document.getElementById('ocrModal');
-const ocrStatus = document.getElementById('ocrStatus');
-const ocrText   = document.getElementById('ocrText');
-
-document.getElementById('ocrBtn').addEventListener('pointerdown', async e => {
-  e.stopPropagation();
-  ocrModal.classList.add('open');
-  ocrText.value = '';
-  ocrStatus.textContent = 'Preparando...';
-  const merged = document.createElement('canvas');
-  merged.width = dc.width; merged.height = dc.height;
-  const mCtx = merged.getContext('2d');
-  mCtx.fillStyle = '#ffffff';
-  mCtx.fillRect(0, 0, merged.width, merged.height);
-  mCtx.drawImage(dc, 0, 0);
+// OCR
+const om = document.getElementById('om');
+const os = document.getElementById('os');
+const ot = document.getElementById('ot');
+document.getElementById('ob').addEventListener('pointerdown', async e => {
+  e.stopPropagation(); om.style.display = 'flex'; ot.value = ''; os.textContent = 'Preparando...';
+  const m = document.createElement('canvas'); m.width = cv.width; m.height = cv.height;
+  const mx = m.getContext('2d'); mx.fillStyle = '#fff'; mx.fillRect(0,0,m.width,m.height); mx.drawImage(cv,0,0);
   try {
-    ocrStatus.textContent = 'Cargando OCR...';
-    const worker = await Tesseract.createWorker('spa', 1, {
-      logger: m => {
-        if (m.status === 'recognizing text')
-          ocrStatus.textContent = 'Reconociendo ' + Math.round(m.progress * 100) + '%';
-      }
-    });
-    const { data: { text } } = await worker.recognize(merged);
-    await worker.terminate();
-    ocrText.value = text.trim() || '(Sin texto reconocido)';
-    ocrStatus.textContent = 'Listo ✓';
-  } catch(err) { ocrStatus.textContent = 'Error: ' + err.message; }
+    os.textContent = 'Cargando OCR...';
+    const w = await Tesseract.createWorker('spa', 1, { logger: x => { if (x.status==='recognizing text') os.textContent='Reconociendo '+Math.round(x.progress*100)+'%'; }});
+    const { data:{text} } = await w.recognize(m); await w.terminate();
+    ot.value = text.trim() || '(sin texto)'; os.textContent = 'Listo ✓';
+  } catch(err) { os.textContent = 'Error: '+err.message; }
 });
-
-document.getElementById('copyBtn').addEventListener('pointerdown', e => {
-  e.stopPropagation();
-  navigator.clipboard.writeText(ocrText.value).then(() => ocrStatus.textContent = '¡Copiado!');
+document.getElementById('cpy').addEventListener('pointerdown', e => { e.stopPropagation(); navigator.clipboard.writeText(ot.value).then(()=>os.textContent='¡Copiado!'); });
+document.getElementById('dl').addEventListener('pointerdown', e => {
+  e.stopPropagation(); const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([ot.value],{type:'text/plain'})); a.download='texto.txt'; a.click();
 });
+document.getElementById('cl').addEventListener('pointerdown', e => { e.stopPropagation(); om.style.display='none'; });
 
-document.getElementById('downloadBtn').addEventListener('pointerdown', e => {
-  e.stopPropagation();
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([ocrText.value], { type: 'text/plain' }));
-  a.download = 'pizarra_texto.txt'; a.click();
-});
-
-document.getElementById('closeOcrBtn').addEventListener('pointerdown', e => {
-  e.stopPropagation();
-  ocrModal.classList.remove('open');
-});
-
-// ── Init ──────────────────────────────────────────────────────
-resizeCanvases();
-const loaded = loadStorage();
-drawBg();
-if (loaded) loadPage(currentPage);
-else pageInd.textContent = '1 / 1';
+// init
+resize();
+try {
+  const d = JSON.parse(localStorage.getItem('piz_v4'));
+  if (d) { pages=d.pages||[null]; pg=d.pg||0; bg=d.bg||'ray';
+    document.querySelectorAll('[data-bg]').forEach(b=>b.classList.toggle('on', b.dataset.bg===bg)); }
+} catch(_) {}
+drawBg(); load(pg);
 </script>
 </body>
 </html>
