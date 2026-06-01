@@ -311,6 +311,7 @@ function drawLine(x1, y1, x2, y2, pressure) {
 
 function startDraw(e) {
   e.preventDefault();
+  clearTimeout(endDrawTimer); // cancelar fin de trazo si el lápiz volvió
   if (isDrawing) return;
   isDrawing = true;
   activePointerId = e.pointerId;
@@ -328,17 +329,23 @@ function doDraw(e) {
   lastX = cx; lastY = cy;
 }
 
+let endDrawTimer = null;
 function endDraw(e) {
   if (e && e.pointerId !== activePointerId) return;
   if (!isDrawing) return;
-  isDrawing = false;
-  activePointerId = null;
-  scheduleSave();
+  // Delay de 80ms — si el lápiz vuelve a tocar antes, cancela el fin del trazo
+  clearTimeout(endDrawTimer);
+  endDrawTimer = setTimeout(() => {
+    isDrawing = false;
+    activePointerId = null;
+    scheduleSave();
+  }, 80);
 }
 
 // Touch events en paralelo — más sensibles en algunos Android
 function onTouchStart(e) {
   e.preventDefault();
+  clearTimeout(endDrawTimer);
   if (isDrawing) return;
   // solo primer toque
   const t = e.changedTouches[0];
@@ -360,9 +367,12 @@ function onTouchMove(e) {
 function onTouchEnd(e) {
   e.preventDefault();
   if (activePointerId !== -1) return;
-  isDrawing = false;
-  activePointerId = null;
-  scheduleSave();
+  clearTimeout(endDrawTimer);
+  endDrawTimer = setTimeout(() => {
+    isDrawing = false;
+    activePointerId = null;
+    scheduleSave();
+  }, 80);
 }
 
 dc.addEventListener('pointerdown', startDraw, { passive: false });
