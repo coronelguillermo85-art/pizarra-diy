@@ -1,512 +1,689 @@
+```html
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-  <title>Pizarra DIY - Con Scroll y Guardado</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { 
-      overflow: auto; 
-      height: 100vh; 
-      width: 100vw; 
-    }
-    #app { display: flex; flex-direction: column; min-height: 100vh; width: 100%; }
-    #toolbar {
-      background: #16213e; padding: 8px 10px;
-      display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
-      user-select: none; flex-shrink: 0;
-      position: sticky;
-      top: 0;
-      z-index: 10;
-    }
-    .btn {
-      background: #0f3460; color: #e0e0ff; border: 1px solid #533483;
-      border-radius: 6px; padding: 7px 12px; font-size: 13px; font-family: sans-serif;
-      cursor: pointer; -webkit-tap-highlight-color: transparent;
-      user-select: none;
-    }
-    .btn.on  { background: #533483; border-color: #a78bfa; }
-    .btn.red { background: #3d0c0c; border-color: #e74c3c; color: #ffaaaa; }
-    .btn.grn { background: #0d3d2e; border-color: #1abc9c; color: #aafce8; }
-    .btn.blue { background: #1a5276; border-color: #3498db; color: #aafce8; }
-    .dot {
-      width: 26px; height: 26px; border-radius: 50%;
-      background: #0f3460; border: 1px solid #533483;
-      display: flex; align-items: center; justify-content: center;
-      cursor: pointer; -webkit-tap-highlight-color: transparent;
-    }
-    .dot.on { background: #533483; border-color: #a78bfa; }
-    .di { background: #e0e0ff; border-radius: 50%; pointer-events: none; }
-    #cp {
-      width: 30px; height: 30px; border-radius: 50%;
-      border: 2px solid #533483; padding: 0; cursor: pointer;
-    }
-    #pi { color: #a78bfa; font-size: 13px; font-family: sans-serif; font-weight: 600; min-width: 40px; text-align: center; }
-    #ss { color: #a78bfa; font-size: 11px; font-family: sans-serif; }
-    #wrap { 
-      flex: 1; 
-      position: relative; 
-      background: #ecf0f1; 
-      min-height: 70vh;
-      width: 100%;
-    }
-    canvas { 
-      position: absolute; 
-      top: 0; 
-      left: 0; 
-      width: 100%;
-      height: 100%;
-    }
-    #bg { pointer-events: none; }
-    #cv { 
-      pointer-events: auto;
-    }
-    .spacer {
-      height: 500px;
-      background: transparent;
-    }
-    .scroll-hint {
-      text-align: center;
-      padding: 20px;
-      color: #888;
-      font-family: sans-serif;
-      font-size: 12px;
-    }
-    .save-manual {
-      background: #1a5276;
-      border-color: #3498db;
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pizarra Pro</title>
+
+<style>
+
+*{
+  margin:0;
+  padding:0;
+  box-sizing:border-box;
+}
+
+body{
+  overflow:hidden;
+  background:#1e1e1e;
+  height:100vh;
+  font-family:Arial,sans-serif;
+}
+
+#app{
+  display:flex;
+  flex-direction:column;
+  height:100vh;
+}
+
+#toolbar{
+  background:#232323;
+  border-bottom:1px solid #444;
+  padding:10px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
+  z-index:10;
+}
+
+.title{
+  color:white;
+  font-weight:bold;
+  margin-right:10px;
+}
+
+.btn{
+  background:#333;
+  color:white;
+  border:none;
+  border-radius:8px;
+  padding:8px 12px;
+  cursor:pointer;
+  transition:.2s;
+  font-size:14px;
+}
+
+.btn:hover{
+  background:#444;
+}
+
+.btn.on{
+  background:#4a6ee0;
+}
+
+.btn.red{
+  background:#8b2d2d;
+}
+
+.btn.green{
+  background:#2d8f4e;
+}
+
+.dot{
+  width:28px;
+  height:28px;
+  border-radius:50%;
+  background:#666;
+  border:2px solid transparent;
+  cursor:pointer;
+}
+
+.dot.on{
+  border-color:white;
+}
+
+#colorPicker{
+  width:35px;
+  height:35px;
+  border:none;
+  background:none;
+  cursor:pointer;
+}
+
+#status{
+  color:#8bc34a;
+  font-size:13px;
+}
+
+#pageInfo{
+  color:white;
+  min-width:40px;
+  text-align:center;
+}
+
+#wrap{
+  flex:1;
+  position:relative;
+  background:white;
+}
+
+canvas{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  touch-action:none;
+}
+
+#bg{
+  z-index:1;
+}
+
+#cv{
+  z-index:2;
+}
+
+#ocrModal{
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,.8);
+  display:none;
+  align-items:center;
+  justify-content:center;
+  z-index:999;
+  padding:20px;
+}
+
+#ocrBox{
+  background:#232323;
+  border:1px solid #555;
+  border-radius:12px;
+  width:100%;
+  max-width:500px;
+  padding:16px;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+
+#ocrStatus{
+  color:#8bc34a;
+}
+
+#ocrText{
+  width:100%;
+  min-height:200px;
+  resize:vertical;
+  background:#111;
+  color:white;
+  border:1px solid #444;
+  border-radius:8px;
+  padding:10px;
+  outline:none;
+}
+
+</style>
 </head>
+
 <body>
+
 <div id="app">
-  <div id="toolbar">
-    <span style="color:#e0e0ff;font-size:13px;font-family:sans-serif;font-weight:500">✎ PIZARRA</span>
-    <span id="ss">✓</span>
-    <div class="dot" data-sz="1"><div class="di" style="width:2px;height:2px"></div></div>
-    <div class="dot" data-sz="2"><div class="di" style="width:3px;height:3px"></div></div>
-    <div class="dot on" data-sz="3"><div class="di" style="width:4px;height:4px"></div></div>
-    <div class="dot" data-sz="5"><div class="di" style="width:6px;height:6px"></div></div>
-    <div class="dot" data-sz="7"><div class="di" style="width:8px;height:8px"></div></div>
-    <div class="dot" data-sz="10"><div class="di" style="width:11px;height:11px"></div></div>
-    <div class="dot" data-sz="14"><div class="di" style="width:15px;height:15px"></div></div>
-    <input type="color" id="cp" value="#1a1a2e">
-    <div class="btn on"  data-md="draw">Lápiz</div>
-    <div class="btn"     data-md="erase">Goma</div>
-    <div class="btn"     data-bg="lisa">Lisa</div>
-    <div class="btn on"  data-bg="ray">Rayada</div>
-    <div class="btn"     data-bg="penta">♪</div>
-    <div class="btn"     id="pb">◀</div>
-    <span id="pi">1/1</span>
-    <div class="btn"     id="nb">▶</div>
-    <div class="btn grn" id="ap">+Pág</div>
-    <div class="btn blue" id="saveBtn">💾 Guardar</div>
-    <div class="btn grn" id="ob">OCR</div>
-    <div class="btn red" id="cb">Borrar</div>
-  </div>
-  <div id="wrap">
-    <canvas id="bg"></canvas>
-    <canvas id="cv"></canvas>
-  </div>
-  <div class="spacer"></div>
-  <div class="scroll-hint">↓ Desliza hacia abajo para hacer scroll ↓</div>
+
+<div id="toolbar">
+
+<div class="title">🖊 Pizarra Pro</div>
+
+<div class="btn on" data-tool="draw">Lápiz</div>
+<div class="btn" data-tool="erase">Goma</div>
+
+<div class="dot" data-size="2"></div>
+<div class="dot on" data-size="4"></div>
+<div class="dot" data-size="8"></div>
+<div class="dot" data-size="14"></div>
+
+<input type="color" id="colorPicker" value="#111111">
+
+<div class="btn" id="bgPlain">Lisa</div>
+<div class="btn on" id="bgLines">Rayada</div>
+
+<div class="btn" id="prevBtn">◀</div>
+
+<div id="pageInfo">1/1</div>
+
+<div class="btn" id="nextBtn">▶</div>
+
+<div class="btn green" id="addPageBtn">+ Página</div>
+
+<div class="btn green" id="saveBtn">💾 Guardar</div>
+
+<div class="btn" id="ocrBtn">OCR</div>
+
+<div class="btn red" id="clearBtn">Borrar</div>
+
+<div id="status">✓</div>
+
 </div>
 
-<!-- OCR modal -->
-<div id="om" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:99;align-items:center;justify-content:center;padding:16px">
-  <div style="background:#16213e;border:1px solid #533483;border-radius:10px;padding:16px;width:100%;max-width:400px;display:flex;flex-direction:column;gap:10px">
-    <div id="os" style="color:#aafce8;font-size:13px;font-family:sans-serif"></div>
-    <textarea id="ot" style="background:#0f1923;color:#e0e0ff;border:1px solid #533483;border-radius:6px;padding:10px;font-size:13px;font-family:sans-serif;min-height:100px;width:100%;outline:none;resize:vertical"></textarea>
-    <div style="display:flex;gap:8px">
-      <div class="btn grn" id="cpy">Copiar</div>
-      <div class="btn grn" id="dl">Bajar .txt</div>
-      <div class="btn red" id="cl">Cerrar</div>
-    </div>
-  </div>
+<div id="wrap">
+  <canvas id="bg"></canvas>
+  <canvas id="cv"></canvas>
+</div>
+
+</div>
+
+<div id="ocrModal">
+
+<div id="ocrBox">
+
+<div id="ocrStatus">OCR listo</div>
+
+<textarea id="ocrText"></textarea>
+
+<div style="display:flex;gap:10px;flex-wrap:wrap">
+
+<button class="btn green" id="copyBtn">Copiar</button>
+
+<button class="btn green" id="downloadBtn">Descargar TXT</button>
+
+<button class="btn red" id="closeOcrBtn">Cerrar</button>
+
+</div>
+
+</div>
+
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-<script>
-const bgc = document.getElementById('bg');
-const bx  = bgc.getContext('2d');
-const cv  = document.getElementById('cv');
-const cx  = cv.getContext('2d');
-const wr  = document.getElementById('wrap');
-const pi  = document.getElementById('pi');
-const ss  = document.getElementById('ss');
 
-let bg   = 'ray';
-let md   = 'draw';
-let sz   = 3;
-let col  = '#1a1a2e';
-let pages = [null];
-let pg   = 0;
-let svT  = null;
+<script>
+
+const bg = document.getElementById("bg");
+const cv = document.getElementById("cv");
+
+const bx = bg.getContext("2d");
+const cx = cv.getContext("2d");
+
+const wrap = document.getElementById("wrap");
+
+const statusEl = document.getElementById("status");
+const pageInfo = document.getElementById("pageInfo");
+
+let tool = "draw";
+let size = 4;
+let color = "#111111";
+let backgroundMode = "lines";
 
 let drawing = false;
-let lastX = 0, lastY = 0;
-let pointerIdActivo = null;
 
-function resize() {
-  const w = wr.clientWidth;
-  const h = wr.clientHeight;
-  if (!w || !h) return;
-  
-  const tmp = document.createElement('canvas');
-  tmp.width = cv.width;
-  tmp.height = cv.height;
-  if (cv.width > 0 && cv.height > 0) {
-    tmp.getContext('2d').drawImage(cv, 0, 0);
+let lastX = 0;
+let lastY = 0;
+
+let pages = [null];
+let currentPage = 0;
+
+function resizeCanvas(){
+
+  const w = wrap.clientWidth;
+  const h = wrap.clientHeight;
+
+  const temp = document.createElement("canvas");
+
+  temp.width = cv.width;
+  temp.height = cv.height;
+
+  if(cv.width > 0){
+    temp.getContext("2d").drawImage(cv,0,0);
   }
-  
+
+  bg.width = w;
+  bg.height = h;
+
   cv.width = w;
   cv.height = h;
-  bgc.width = w;
-  bgc.height = h;
-  
-  if (tmp.width > 0 && tmp.height > 0) {
-    cx.drawImage(tmp, 0, 0);
+
+  drawBackground();
+
+  if(temp.width > 0){
+    cx.drawImage(temp,0,0);
   }
-  
-  drawBg();
+
 }
 
-window.addEventListener('resize', () => setTimeout(resize, 100));
-setTimeout(resize, 100);
+window.addEventListener("resize",resizeCanvas);
 
-function drawBg() {
-  const w = bgc.width, h = bgc.height;
-  bx.fillStyle = '#ecf0f1';
-  bx.fillRect(0, 0, w, h);
-  if (bg === 'lisa') return;
-  if (bg === 'ray') {
-    bx.strokeStyle = '#bdc3c7';
-    bx.lineWidth = 1;
-    for (let y = 40; y < h; y += 40) {
-      bx.beginPath();
-      bx.moveTo(0, y);
-      bx.lineTo(w, y);
-      bx.stroke();
-    }
-    return;
-  }
-  bx.strokeStyle = '#95a5a6';
+function drawBackground(){
+
+  bx.fillStyle = "#ffffff";
+  bx.fillRect(0,0,bg.width,bg.height);
+
+  if(backgroundMode === "plain") return;
+
+  bx.strokeStyle = "#d0d0d0";
   bx.lineWidth = 1;
-  for (let b = 60; b < h; b += 160) {
-    for (let i = 0; i < 5; i++) {
-      bx.beginPath();
-      bx.moveTo(0, b + i * 12);
-      bx.lineTo(w, b + i * 12);
-      bx.stroke();
-    }
+
+  for(let y=40;y<bg.height;y+=40){
+
+    bx.beginPath();
+    bx.moveTo(0,y);
+    bx.lineTo(bg.width,y);
+    bx.stroke();
+
   }
+
 }
 
-function save() { 
-  pages[pg] = cv.toDataURL(); 
+function savePage(){
+
+  pages[currentPage] = cv.toDataURL();
+
+  localStorage.setItem("pizarra_pro",JSON.stringify({
+    pages,
+    currentPage,
+    backgroundMode
+  }));
+
+  statusEl.textContent = "✓ Guardado";
+
+  setTimeout(()=>{
+    statusEl.textContent = "✓";
+  },1500);
+
 }
 
-function guardarCompleto() {
-  save();
-  try {
-    localStorage.setItem('piz_v4', JSON.stringify({ pages, pg, bg }));
-    ss.textContent = '✓ guardado';
-    setTimeout(() => {
-      if (ss.textContent === '✓ guardado') ss.textContent = '✓';
-    }, 2000);
-  } catch(e) { 
-    ss.textContent = '⚠ error';
+function loadPage(index){
+
+  cx.clearRect(0,0,cv.width,cv.height);
+
+  if(pages[index]){
+
+    const img = new Image();
+
+    img.onload = ()=>{
+      cx.drawImage(img,0,0);
+    };
+
+    img.src = pages[index];
+
   }
+
+  pageInfo.textContent =
+    (index+1)+"/"+pages.length;
+
 }
 
-function load(i) {
-  cx.clearRect(0, 0, cv.width, cv.height);
-  if (pages[i]) {
-    const im = new Image();
-    im.onload = () => cx.drawImage(im, 0, 0);
-    im.src = pages[i];
-  }
-  pi.textContent = (i + 1) + '/' + pages.length;
+function getPos(e){
+
+  const rect = cv.getBoundingClientRect();
+
+  return {
+    x:e.clientX - rect.left,
+    y:e.clientY - rect.top
+  };
+
 }
 
-function persistAuto() {
-  ss.textContent = '...';
-  clearTimeout(svT);
-  svT = setTimeout(() => {
-    save();
-    try {
-      localStorage.setItem('piz_v4', JSON.stringify({ pages, pg, bg }));
-      ss.textContent = '✓';
-    } catch(e) { ss.textContent = '⚠'; }
-  }, 800);
-}
+function startDraw(e){
 
-// Botón guardar manual
-document.getElementById('saveBtn').addEventListener('click', e => {
-  e.stopPropagation();
-  guardarCompleto();
-});
-
-document.getElementById('pb').addEventListener('click', e => {
-  e.stopPropagation();
-  if (pg > 0) { save(); pg--; load(pg); persistAuto(); }
-});
-document.getElementById('nb').addEventListener('click', e => {
-  e.stopPropagation();
-  save();
-  if (pg < pages.length - 1) { pg++; }
-  else { pages.push(null); pg = pages.length - 1; }
-  load(pg);
-  persistAuto();
-});
-document.getElementById('ap').addEventListener('click', e => {
-  e.stopPropagation();
-  save();
-  pages.push(null);
-  pg = pages.length - 1;
-  load(pg);
-  persistAuto();
-});
-
-// ========== DIBUJO ==========
-function getXY(e) {
-  const r = cv.getBoundingClientRect();
-  let clientX, clientY;
-  if (e.touches) {
-    clientX = e.touches[0].clientX;
-    clientY = e.touches[0].clientY;
-  } else {
-    clientX = e.clientX;
-    clientY = e.clientY;
-  }
-  return [clientX - r.left, clientY - r.top];
-}
-
-function drawSmooth(x, y) {
-  if (!drawing) return;
-  
-  const dx = x - lastX;
-  const dy = y - lastY;
-  const distance = Math.hypot(dx, dy);
-  
-  if (distance < 0.5) return;
-  
-  if (distance > 3) {
-    const steps = Math.min(Math.ceil(distance / 1.5), 8);
-    for (let step = 1; step <= steps; step++) {
-      const t = step / steps;
-      const ix = lastX + dx * t;
-      const iy = lastY + dy * t;
-      
-      cx.save();
-      cx.lineJoin = 'round';
-      cx.lineCap = 'round';
-      cx.globalCompositeOperation = md === 'erase' ? 'destination-out' : 'source-over';
-      
-      if (md === 'erase') {
-        cx.strokeStyle = 'rgba(0,0,0,1)';
-        cx.lineWidth = sz * 2;
-      } else {
-        cx.strokeStyle = col;
-        cx.lineWidth = sz;
-      }
-      
-      cx.beginPath();
-      cx.moveTo(step === 1 ? lastX : ix - dx/steps, step === 1 ? lastY : iy - dy/steps);
-      cx.lineTo(ix, iy);
-      cx.stroke();
-      cx.restore();
-    }
-  }
-  
-  cx.save();
-  cx.lineJoin = 'round';
-  cx.lineCap = 'round';
-  cx.globalCompositeOperation = md === 'erase' ? 'destination-out' : 'source-over';
-  
-  if (md === 'erase') {
-    cx.strokeStyle = 'rgba(0,0,0,1)';
-    cx.lineWidth = sz * 2;
-  } else {
-    cx.strokeStyle = col;
-    cx.lineWidth = sz;
-  }
-  
-  cx.beginPath();
-  cx.moveTo(lastX, lastY);
-  cx.lineTo(x, y);
-  cx.stroke();
-  cx.restore();
-  
-  lastX = x;
-  lastY = y;
-}
-
-function startDrawing(x, y) {
   drawing = true;
-  lastX = x;
-  lastY = y;
-  
-  cx.save();
+
+  const pos = getPos(e);
+
+  lastX = pos.x;
+  lastY = pos.y;
+
+}
+
+function draw(e){
+
+  if(!drawing) return;
+
+  const pos = getPos(e);
+
+  cx.lineCap = "round";
+  cx.lineJoin = "round";
+
+  if(tool === "erase"){
+
+    cx.globalCompositeOperation = "destination-out";
+    cx.lineWidth = size * 2;
+
+  }else{
+
+    cx.globalCompositeOperation = "source-over";
+    cx.strokeStyle = color;
+    cx.lineWidth = size;
+
+  }
+
   cx.beginPath();
-  cx.globalCompositeOperation = md === 'erase' ? 'destination-out' : 'source-over';
-  
-  if (md === 'erase') {
-    cx.arc(x, y, sz * 1.2, 0, Math.PI * 2);
-    cx.fillStyle = 'rgba(0,0,0,1)';
-    cx.fill();
-  } else {
-    cx.arc(x, y, sz * 0.3, 0, Math.PI * 2);
-    cx.fillStyle = col;
-    cx.fill();
-  }
-  cx.restore();
+
+  cx.moveTo(lastX,lastY);
+  cx.lineTo(pos.x,pos.y);
+
+  cx.stroke();
+
+  lastX = pos.x;
+  lastY = pos.y;
+
 }
 
-function stopDrawing() {
-  if (drawing) {
+function stopDraw(){
+
+  if(drawing){
+
     drawing = false;
-    pointerIdActivo = null;
-    persistAuto();
+
+    savePage();
+
   }
+
 }
 
-// Eventos - permiten scroll
-cv.addEventListener('pointerdown', (e) => {
-  if (drawing || pointerIdActivo !== null) return;
-  
-  pointerIdActivo = e.pointerId;
-  cv.setPointerCapture(e.pointerId);
-  const [x, y] = getXY(e);
-  startDrawing(x, y);
+cv.addEventListener("pointerdown",startDraw);
+
+cv.addEventListener("pointermove",draw);
+
+cv.addEventListener("pointerup",stopDraw);
+
+cv.addEventListener("pointercancel",stopDraw);
+
+document.querySelectorAll("[data-tool]")
+.forEach(btn=>{
+
+  btn.addEventListener("click",()=>{
+
+    document.querySelectorAll("[data-tool]")
+    .forEach(b=>b.classList.remove("on"));
+
+    btn.classList.add("on");
+
+    tool = btn.dataset.tool;
+
+  });
+
 });
 
-cv.addEventListener('pointermove', (e) => {
-  if (!drawing || e.pointerId !== pointerIdActivo) return;
-  e.preventDefault();
-  const [x, y] = getXY(e);
-  drawSmooth(x, y);
+document.querySelectorAll("[data-size]")
+.forEach(dot=>{
+
+  dot.addEventListener("click",()=>{
+
+    document.querySelectorAll("[data-size]")
+    .forEach(d=>d.classList.remove("on"));
+
+    dot.classList.add("on");
+
+    size = Number(dot.dataset.size);
+
+  });
+
 });
 
-cv.addEventListener('pointerup', (e) => {
-  if (e.pointerId === pointerIdActivo) stopDrawing();
-});
-cv.addEventListener('pointercancel', (e) => {
-  if (e.pointerId === pointerIdActivo) stopDrawing();
+document.getElementById("colorPicker")
+.addEventListener("input",(e)=>{
+
+  color = e.target.value;
+
 });
 
-// Touch events
-cv.addEventListener('touchstart', (e) => {
-  if (drawing || pointerIdActivo !== null) return;
-  
-  pointerIdActivo = 'touch';
-  const [x, y] = getXY(e);
-  startDrawing(x, y);
+document.getElementById("saveBtn")
+.addEventListener("click",savePage);
+
+document.getElementById("clearBtn")
+.addEventListener("click",()=>{
+
+  cx.clearRect(0,0,cv.width,cv.height);
+
+  pages[currentPage] = null;
+
+  savePage();
+
 });
 
-cv.addEventListener('touchmove', (e) => {
-  if (!drawing || pointerIdActivo !== 'touch') return;
-  e.preventDefault();
-  const [x, y] = getXY(e);
-  drawSmooth(x, y);
-});
+document.getElementById("nextBtn")
+.addEventListener("click",()=>{
 
-cv.addEventListener('touchend', (e) => {
-  if (pointerIdActivo === 'touch') stopDrawing();
-});
-cv.addEventListener('touchcancel', (e) => {
-  if (pointerIdActivo === 'touch') stopDrawing();
-});
+  savePage();
 
-// Controles
-document.querySelectorAll('[data-sz]').forEach(b => b.addEventListener('click', e => {
-  e.stopPropagation();
-  sz = +b.dataset.sz;
-  document.querySelectorAll('[data-sz]').forEach(x => x.classList.remove('on'));
-  b.classList.add('on');
-}));
-document.querySelectorAll('[data-md]').forEach(b => b.addEventListener('click', e => {
-  e.stopPropagation();
-  md = b.dataset.md;
-  document.querySelectorAll('[data-md]').forEach(x => x.classList.remove('on'));
-  b.classList.add('on');
-}));
-document.querySelectorAll('[data-bg]').forEach(b => b.addEventListener('click', e => {
-  e.stopPropagation();
-  bg = b.dataset.bg;
-  document.querySelectorAll('[data-bg]').forEach(x => x.classList.remove('on'));
-  b.classList.add('on');
-  drawBg();
-  persistAuto();
-}));
-document.getElementById('cp').addEventListener('input', e => col = e.target.value);
-document.getElementById('cb').addEventListener('click', e => {
-  e.stopPropagation();
-  cx.clearRect(0, 0, cv.width, cv.height);
-  pages[pg] = null;
-  persistAuto();
-});
+  if(currentPage < pages.length-1){
 
-// OCR
-const om = document.getElementById('om');
-const os = document.getElementById('os');
-const ot = document.getElementById('ot');
-document.getElementById('ob').addEventListener('click', async e => {
-  e.stopPropagation();
-  om.style.display = 'flex';
-  ot.value = '';
-  os.textContent = 'Preparando...';
-  const m = document.createElement('canvas');
-  m.width = cv.width;
-  m.height = cv.height;
-  const mx = m.getContext('2d');
-  mx.fillStyle = '#fff';
-  mx.fillRect(0, 0, m.width, m.height);
-  mx.drawImage(cv, 0, 0);
-  try {
-    os.textContent = 'Cargando OCR...';
-    const w = await Tesseract.createWorker('spa', 1, {
-      logger: x => {
-        if (x.status === 'recognizing text')
-          os.textContent = 'Reconociendo ' + Math.round(x.progress * 100) + '%';
-      }
-    });
-    const { data: { text } } = await w.recognize(m);
-    await w.terminate();
-    ot.value = text.trim() || '(sin texto)';
-    os.textContent = 'Listo ✓';
-  } catch(err) { os.textContent = 'Error: ' + err.message; }
-});
-document.getElementById('cpy').addEventListener('click', e => {
-  e.stopPropagation();
-  navigator.clipboard.writeText(ot.value).then(() => os.textContent = '¡Copiado!');
-});
-document.getElementById('dl').addEventListener('click', e => {
-  e.stopPropagation();
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([ot.value], { type: 'text/plain' }));
-  a.download = 'texto.txt';
-  a.click();
-});
-document.getElementById('cl').addEventListener('click', e => {
-  e.stopPropagation();
-  om.style.display = 'none';
-});
+    currentPage++;
 
-// Init
-resize();
-try {
-  const d = JSON.parse(localStorage.getItem('piz_v4'));
-  if (d) {
-    pages = d.pages || [null];
-    pg = d.pg || 0;
-    bg = d.bg || 'ray';
-    document.querySelectorAll('[data-bg]').forEach(b => b.classList.toggle('on', b.dataset.bg === bg));
+  }else{
+
+    pages.push(null);
+
+    currentPage = pages.length - 1;
+
   }
-} catch(_) {}
-drawBg();
-load(pg);
+
+  loadPage(currentPage);
+
+});
+
+document.getElementById("prevBtn")
+.addEventListener("click",()=>{
+
+  if(currentPage > 0){
+
+    savePage();
+
+    currentPage--;
+
+    loadPage(currentPage);
+
+  }
+
+});
+
+document.getElementById("addPageBtn")
+.addEventListener("click",()=>{
+
+  savePage();
+
+  pages.push(null);
+
+  currentPage = pages.length - 1;
+
+  loadPage(currentPage);
+
+});
+
+document.getElementById("bgPlain")
+.addEventListener("click",()=>{
+
+  backgroundMode = "plain";
+
+  document.getElementById("bgPlain")
+  .classList.add("on");
+
+  document.getElementById("bgLines")
+  .classList.remove("on");
+
+  drawBackground();
+
+  savePage();
+
+});
+
+document.getElementById("bgLines")
+.addEventListener("click",()=>{
+
+  backgroundMode = "lines";
+
+  document.getElementById("bgLines")
+  .classList.add("on");
+
+  document.getElementById("bgPlain")
+  .classList.remove("on");
+
+  drawBackground();
+
+  savePage();
+
+});
+
+const ocrModal = document.getElementById("ocrModal");
+const ocrStatus = document.getElementById("ocrStatus");
+const ocrText = document.getElementById("ocrText");
+
+document.getElementById("ocrBtn")
+.addEventListener("click",async()=>{
+
+  ocrModal.style.display = "flex";
+
+  ocrStatus.textContent = "Procesando OCR...";
+
+  try{
+
+    const temp = document.createElement("canvas");
+
+    temp.width = cv.width;
+    temp.height = cv.height;
+
+    const tctx = temp.getContext("2d");
+
+    tctx.fillStyle = "white";
+    tctx.fillRect(0,0,temp.width,temp.height);
+
+    tctx.drawImage(cv,0,0);
+
+    const worker = await Tesseract.createWorker("spa");
+
+    const result =
+      await worker.recognize(temp);
+
+    ocrText.value = result.data.text;
+
+    ocrStatus.textContent = "✓ OCR completo";
+
+    await worker.terminate();
+
+  }catch(err){
+
+    ocrStatus.textContent =
+      "Error OCR";
+
+  }
+
+});
+
+document.getElementById("copyBtn")
+.addEventListener("click",()=>{
+
+  navigator.clipboard.writeText(
+    ocrText.value
+  );
+
+  ocrStatus.textContent =
+    "✓ Copiado";
+
+});
+
+document.getElementById("downloadBtn")
+.addEventListener("click",()=>{
+
+  const a =
+    document.createElement("a");
+
+  a.href = URL.createObjectURL(
+    new Blob([ocrText.value],{
+      type:"text/plain"
+    })
+  );
+
+  a.download = "texto.txt";
+
+  a.click();
+
+});
+
+document.getElementById("closeOcrBtn")
+.addEventListener("click",()=>{
+
+  ocrModal.style.display = "none";
+
+});
+
+try{
+
+  const data =
+    JSON.parse(
+      localStorage.getItem("pizarra_pro")
+    );
+
+  if(data){
+
+    pages = data.pages || [null];
+
+    currentPage =
+      data.currentPage || 0;
+
+    backgroundMode =
+      data.backgroundMode || "lines";
+
+  }
+
+}catch(e){}
+
+if(backgroundMode === "plain"){
+
+  document.getElementById("bgPlain")
+  .classList.add("on");
+
+  document.getElementById("bgLines")
+  .classList.remove("on");
+
+}
+
+resizeCanvas();
+
+loadPage(currentPage);
+
 </script>
+
 </body>
 </html>
+```
