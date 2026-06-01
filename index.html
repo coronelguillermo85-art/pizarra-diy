@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>Pizarra DIY - Lápiz perfecto</title>
+  <title>Pizarra DIY</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { overflow: hidden; height: 100vh; width: 100vw; position: fixed; }
@@ -102,13 +102,11 @@ let col  = '#1a1a2e';
 let pages = [null];
 let pg   = 0;
 let svT  = null;
-let necesitaGuardar = false;  // ← NUEVO: guardado diferido sin bloquear
 
 // dibujo
 let on = false;
 let aid = null;
 let lx = 0, ly = 0;
-let ultimoMovimiento = 0;  // ← NUEVO: para throttle suave
 
 // resize
 function resize() {
@@ -141,212 +139,83 @@ function drawBg() {
     for (let i = 0; i < 5; i++) { bx.beginPath(); bx.moveTo(0, b+i*12); bx.lineTo(w, b+i*12); bx.stroke(); }
 }
 
-// páginas - GUARDADO SILENCIOSO QUE NO BLOQUEA
-function save() { 
-  pages[pg] = cv.toDataURL(); 
-}
-
-function persistirSilencioso() {
-  // Solo marca que hay que guardar, no ejecuta inmediatamente
-  necesitaGuardar = true;
-  ss.textContent = '...';
-  
-  clearTimeout(svT);
-  svT = setTimeout(() => {
-    if (necesitaGuardar) {
-      save();
-      try { 
-        localStorage.setItem('piz_v4', JSON.stringify({pages, pg, bg})); 
-        ss.textContent = '✓';
-        necesitaGuardar = false;
-      } catch(e) { 
-        ss.textContent = '⚠'; 
-      }
-    }
-  }, 1500);  // ← más lento para no interferir
-}
-
-function guardadoInmediato() {
-  save();
-  try { 
-    localStorage.setItem('piz_v4', JSON.stringify({pages, pg, bg})); 
-    ss.textContent = '✓';
-  } catch(e) { 
-    ss.textContent = '⚠'; 
-  }
-  necesitaGuardar = false;
-  clearTimeout(svT);
-}
-
+// páginas
+function save()   { pages[pg] = cv.toDataURL(); }
 function load(i)  {
   cx.clearRect(0, 0, cv.width, cv.height);
   if (pages[i]) { const im = new Image(); im.onload = () => cx.drawImage(im, 0, 0); im.src = pages[i]; }
   pi.textContent = (i+1) + '/' + pages.length;
 }
+function persist() {
+  ss.textContent = '...';
+  clearTimeout(svT);
+  svT = setTimeout(() => {
+    save();
+    try { localStorage.setItem('piz_v4', JSON.stringify({pages, pg, bg})); ss.textContent = '✓'; }
+    catch(e) { ss.textContent = '⚠'; }
+  }, 1500);
+}
 
 document.getElementById('pb').addEventListener('pointerdown', e => {
-  e.stopPropagation(); 
-  if (pg > 0) { 
-    save(); 
-    pg--; 
-    load(pg); 
-    guardadoInmediato();
-  }
+  e.stopPropagation(); if (pg > 0) { save(); pg--; load(pg); persist(); }
 });
 document.getElementById('nb').addEventListener('pointerdown', e => {
-  e.stopPropagation(); 
-  save();
-  if (pg < pages.length - 1) { 
-    pg++; 
-  } else { 
-    pages.push(null); 
-    pg = pages.length - 1; 
-  }
-  load(pg); 
-  guardadoInmediato();
+  e.stopPropagation(); save();
+  if (pg < pages.length - 1) { pg++; } else { pages.push(null); pg = pages.length - 1; }
+  load(pg); persist();
 });
 document.getElementById('ap').addEventListener('pointerdown', e => {
-  e.stopPropagation(); 
-  save(); 
-  pages.push(null); 
-  pg = pages.length - 1; 
-  load(pg); 
-  guardadoInmediato();
+  e.stopPropagation(); save(); pages.push(null); pg = pages.length - 1; load(pg); persist();
 });
 
-// ========== DIBUJO CORREGIDO - SIN INTERFERENCIA DEL GUARDADO ==========
+// ========== DIBUJO ORIGINAL (el que funcionaba) ==========
 function xy(e) {
   const r = cv.getBoundingClientRect();
-  let clientX, clientY;
-  if (e.touches) {
-    clientX = e.touches[0].clientX;
-    clientY = e.touches[0].clientY;
-  } else {
-    clientX = e.clientX;
-    clientY = e.clientY;
-  }
-  return [clientX - r.left, clientY - r.top];
+  return [e.clientX - r.left, e.clientY - r.top];
 }
 
-function iniciarTrazo(x, y) {
-  on = true;
-  lx = x; ly = y;
-  cx.save();
-  cx.beginPath();
-  cx.globalCompositeOperation = md === 'erase' ? 'destination-out' : 'source-over';
-  
-  if (md === 'erase') {
-    cx.arc(x, y, sz * 1.5, 0, Math.PI * 2);
-    cx.fillStyle = 'rgba(0,0,0,1)';
-    cx.fill();
-  } else {
-    cx.arc(x, y, sz * 0.4, 0, Math.PI * 2);
-    cx.fillStyle = col;
-    cx.fill();
-  }
-  cx.restore();
-}
-
-function dibujarTrazo(x, y, pressure = 0.5) {
-  if (!on) return;
-  
-  cx.save();
-  cx.lineJoin = 'round';
-  cx.lineCap = 'round';
-  cx.globalCompositeOperation = md === 'erase' ? 'destination-out' : 'source-over';
-  
-  let lineWidth;
-  if (md === 'erase') {
-    lineWidth = sz * 2.5;
-    cx.strokeStyle = 'rgba(0,0,0,1)';
-  } else {
-    // Presión: entre 0.4x y 2.2x el tamaño base
-    let pressureFactor = Math.min(2.2, Math.max(0.4, pressure * 1.8));
-    if (pressure === 0.5 && e.pressure === undefined) pressureFactor = 1.0;
-    lineWidth = sz * pressureFactor;
-    cx.strokeStyle = col;
-  }
-  
-  cx.lineWidth = lineWidth;
-  cx.beginPath();
-  cx.moveTo(lx, ly);
-  cx.lineTo(x, y);
-  cx.stroke();
-  cx.restore();
-  
-  lx = x;
-  ly = y;
-}
-
-function finalizarTrazo() {
-  if (on) {
-    on = false;
-    aid = null;
-    persistirSilencioso();  // ← guardado diferido, NO bloquea
-  }
-}
-
-// POINTER EVENTS (para lápiz con presión)
-cv.addEventListener('pointerdown', (e) => {
-  e.preventDefault();
+cv.addEventListener('pointerdown', e => {
   if (on) return;
+  e.preventDefault();
+  on  = true;
   aid = e.pointerId;
-  try { cv.setPointerCapture(e.pointerId); } catch(_) {}
-  const [x, y] = xy(e);
-  iniciarTrazo(x, y);
+  cv.setPointerCapture(e.pointerId);
+  [lx, ly] = xy(e);
 }, { passive: false });
 
-cv.addEventListener('pointermove', (e) => {
+cv.addEventListener('pointermove', e => {
   e.preventDefault();
-  
-  // Si el lápiz está presionando pero no iniciamos (caso borde)
-  if (!on && e.buttons === 1) {
-    aid = e.pointerId;
-    const [x, y] = xy(e);
-    iniciarTrazo(x, y);
-    return;
+  if (!on && e.buttons > 0) {
+    on = true; aid = e.pointerId;
+    try { cv.setPointerCapture(e.pointerId); } catch(_) {}
+    [lx, ly] = xy(e); return;
   }
-  
   if (!on || e.pointerId !== aid) return;
-  
   const [x, y] = xy(e);
-  let pressure = e.pressure;
-  // Si el dispositivo no da presión, usar 0.7 por defecto
-  if (!pressure || pressure === 0) pressure = 0.7;
-  dibujarTrazo(x, y, pressure);
+  if (Math.hypot(x-lx, y-ly) < 0.5) return;
+  cx.save();
+  cx.lineJoin = cx.lineCap = 'round';
+  if (md === 'erase') {
+    cx.globalCompositeOperation = 'destination-out';
+    cx.strokeStyle = 'rgba(0,0,0,1)';
+    cx.lineWidth = sz * 3;
+  } else {
+    cx.globalCompositeOperation = 'source-over';
+    cx.strokeStyle = col;
+    cx.lineWidth = sz;
+  }
+  cx.beginPath(); cx.moveTo(lx, ly); cx.lineTo(x, y); cx.stroke();
+  cx.restore();
+  lx = x; ly = y;
 }, { passive: false });
 
-cv.addEventListener('pointerup', (e) => {
-  if (e.pointerId === aid || aid === null) finalizarTrazo();
-});
-cv.addEventListener('pointercancel', (e) => {
-  if (e.pointerId === aid || aid === null) finalizarTrazo();
-});
-
-// TOUCH EVENTS (respaldo para dedo)
-cv.addEventListener('touchstart', (e) => {
-  e.preventDefault();
-  if (on) return;
-  aid = 'touch';
-  const [x, y] = xy(e);
-  iniciarTrazo(x, y);
-}, { passive: false });
-
-cv.addEventListener('touchmove', (e) => {
-  e.preventDefault();
-  if (!on || aid !== 'touch') return;
-  const [x, y] = xy(e);
-  dibujarTrazo(x, y, 0.6);
-}, { passive: false });
-
-cv.addEventListener('touchend', (e) => {
-  e.preventDefault();
-  if (aid === 'touch') finalizarTrazo();
-});
-cv.addEventListener('touchcancel', (e) => {
-  e.preventDefault();
-  if (aid === 'touch') finalizarTrazo();
-});
+function stopDraw(e) {
+  if (e && e.pointerId !== aid) return;
+  on = false; aid = null; persist();
+}
+cv.addEventListener('pointerup',     stopDraw);
+cv.addEventListener('pointercancel', stopDraw);
+cv.addEventListener('pointerleave',  stopDraw);
 
 // controles
 document.querySelectorAll('[data-sz]').forEach(b => b.addEventListener('pointerdown', e => {
@@ -360,11 +229,11 @@ document.querySelectorAll('[data-md]').forEach(b => b.addEventListener('pointerd
 document.querySelectorAll('[data-bg]').forEach(b => b.addEventListener('pointerdown', e => {
   e.stopPropagation(); bg = b.dataset.bg;
   document.querySelectorAll('[data-bg]').forEach(x => x.classList.remove('on')); b.classList.add('on');
-  drawBg(); guardadoInmediato();
+  drawBg(); persist();
 }));
 document.getElementById('cp').addEventListener('input', e => col = e.target.value);
 document.getElementById('cb').addEventListener('pointerdown', e => {
-  e.stopPropagation(); cx.clearRect(0,0,cv.width,cv.height); pages[pg]=null; guardadoInmediato();
+  e.stopPropagation(); cx.clearRect(0,0,cv.width,cv.height); pages[pg]=null; persist();
 });
 
 // OCR
