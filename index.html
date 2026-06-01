@@ -133,6 +133,7 @@ const saveStatus = document.getElementById('saveStatus');
 const STORAGE_KEY = 'pizarra_diy_v1';
 
 let isDrawing = false;
+let activePointerId = null; // ID del puntero que está dibujando
 let lastX = 0, lastY = 0;
 let currentBg = 'rayada';
 let currentMode = 'linea';
@@ -168,7 +169,6 @@ function loadFromStorage() {
     pages = data.pages || [null];
     currentPage = data.currentPage || 0;
     currentBg = data.currentBg || 'rayada';
-    // Sync bg button
     document.querySelectorAll('[data-bg]').forEach(b => {
       b.classList.toggle('active', b.dataset.bg === currentBg);
     });
@@ -178,10 +178,11 @@ function loadFromStorage() {
 
 // --- Canvas ---
 function resizeCanvases() {
+  if (wrap.clientWidth === 0 || wrap.clientHeight === 0) return;
   const w = wrap.clientWidth, h = wrap.clientHeight;
   const tmp = document.createElement('canvas');
   tmp.width = dc.width; tmp.height = dc.height;
-  tmp.getContext('2d').drawImage(dc, 0, 0);
+  if (dc.width > 0 && dc.height > 0) tmp.getContext('2d').drawImage(dc, 0, 0);
   dc.width = w; dc.height = h;
   bgCanvas.width = w; bgCanvas.height = h;
   ctx.drawImage(tmp, 0, 0);
@@ -212,9 +213,7 @@ function drawBg() {
   }
 }
 
-function savePage() {
-  pages[currentPage] = dc.toDataURL();
-}
+function savePage() { pages[currentPage] = dc.toDataURL(); }
 
 function loadPage(index) {
   ctx.clearRect(0, 0, dc.width, dc.height);
@@ -237,47 +236,49 @@ function flashTransition() {
 }
 
 function goToPage(index) {
-  savePage();
-  flashTransition();
+  savePage(); flashTransition();
   currentPage = index;
   setTimeout(() => loadPage(currentPage), 80);
   scheduleSave();
 }
 
-// --- Controles de página ---
 document.getElementById('prevBtn').addEventListener('pointerdown', e => {
   e.stopPropagation();
   if (currentPage > 0) goToPage(currentPage - 1);
 });
-
 document.getElementById('nextBtn').addEventListener('pointerdown', e => {
   e.stopPropagation();
   if (currentPage < pages.length - 1) goToPage(currentPage + 1);
 });
-
 document.getElementById('addPageBtn').addEventListener('pointerdown', e => {
   e.stopPropagation();
-  savePage();
-  pages.push(null);
-  flashTransition();
+  savePage(); pages.push(null); flashTransition();
   currentPage = pages.length - 1;
-  setTimeout(() => {
-    ctx.clearRect(0, 0, dc.width, dc.height);
-    updateIndicator();
-  }, 80);
+  setTimeout(() => { ctx.clearRect(0, 0, dc.width, dc.height); updateIndicator(); }, 80);
   scheduleSave();
 });
 
-// --- Dibujo ---
+// --- PALM REJECTION ---
+// Solo acepta el primer puntero que toca el canvas.
+// Si ya hay un trazo activo, ignora cualquier otro dedo/palma.
+function isValidPointer(e) {
+  // Si hay un trazo activo, solo acepta el mismo pointer ID
+  if (isDrawing) return e.pointerId === activePointerId;
+  // Si no hay trazo activo, acepta el primer toque
+  return true;
+}
+
 function getPos(e) {
   const r = dc.getBoundingClientRect();
-  const src = e.changedTouches ? e.changedTouches[0] : e;
-  return [src.clientX - r.left, src.clientY - r.top];
+  return [e.clientX - r.left, e.clientY - r.top];
 }
 
 function startDraw(e) {
   e.preventDefault();
+  if (isDrawing) return; // ya hay un trazo activo, ignorar palma
   isDrawing = true;
+  activePointerId = e.pointerId;
+  dc.setPointerCapture(e.pointerId); // captura el puntero para seguirlo aunque salga del canvas
   [lastX, lastY] = getPos(e);
   ctx.save();
   ctx.beginPath();
@@ -294,7 +295,7 @@ function startDraw(e) {
 }
 
 function doDraw(e) {
-  if (!isDrawing) return;
+  if (!isDrawing || e.pointerId !== activePointerId) return; // ignorar otros punteros
   e.preventDefault();
   const [cx, cy] = getPos(e);
   ctx.save();
@@ -313,9 +314,11 @@ function doDraw(e) {
   lastX = cx; lastY = cy;
 }
 
-function endDraw() {
+function endDraw(e) {
+  if (e.pointerId !== activePointerId) return;
   if (!isDrawing) return;
   isDrawing = false;
+  activePointerId = null;
   scheduleSave();
 }
 
@@ -323,7 +326,6 @@ dc.addEventListener('pointerdown', startDraw, { passive: false });
 dc.addEventListener('pointermove', doDraw, { passive: false });
 dc.addEventListener('pointerup', endDraw);
 dc.addEventListener('pointercancel', endDraw);
-dc.addEventListener('pointerleave', endDraw);
 
 document.getElementById('clearBtn').addEventListener('pointerdown', e => {
   e.stopPropagation();
@@ -338,8 +340,7 @@ document.querySelectorAll('[data-bg]').forEach(btn => {
     currentBg = btn.dataset.bg;
     document.querySelectorAll('[data-bg]').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
-    drawBg();
-    scheduleSave();
+    drawBg(); scheduleSave();
   });
 });
 
@@ -400,9 +401,7 @@ document.getElementById('ocrBtn').addEventListener('pointerdown', async e => {
 
 document.getElementById('copyBtn').addEventListener('pointerdown', e => {
   e.stopPropagation();
-  navigator.clipboard.writeText(ocrText.value).then(() => {
-    ocrStatus.textContent = '¡Copiado!';
-  });
+  navigator.clipboard.writeText(ocrText.value).then(() => { ocrStatus.textContent = '¡Copiado!'; });
 });
 
 document.getElementById('downloadBtn').addEventListener('pointerdown', e => {
@@ -424,11 +423,8 @@ window.addEventListener('resize', resizeCanvases);
 resizeCanvases();
 const loaded = loadFromStorage();
 drawBg();
-if (loaded) {
-  loadPage(currentPage);
-} else {
-  updateIndicator();
-}
+if (loaded) loadPage(currentPage);
+else updateIndicator();
 </script>
 </body>
 </html>
