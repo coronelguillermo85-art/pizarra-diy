@@ -2,8 +2,8 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>Pizarra DIY - Trazo fino</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+  <title>Pizarra DIY - Con Scroll y Guardado</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { 
@@ -24,17 +24,17 @@
       background: #0f3460; color: #e0e0ff; border: 1px solid #533483;
       border-radius: 6px; padding: 7px 12px; font-size: 13px; font-family: sans-serif;
       cursor: pointer; -webkit-tap-highlight-color: transparent;
-      touch-action: manipulation; user-select: none;
+      user-select: none;
     }
     .btn.on  { background: #533483; border-color: #a78bfa; }
     .btn.red { background: #3d0c0c; border-color: #e74c3c; color: #ffaaaa; }
     .btn.grn { background: #0d3d2e; border-color: #1abc9c; color: #aafce8; }
+    .btn.blue { background: #1a5276; border-color: #3498db; color: #aafce8; }
     .dot {
       width: 26px; height: 26px; border-radius: 50%;
       background: #0f3460; border: 1px solid #533483;
       display: flex; align-items: center; justify-content: center;
       cursor: pointer; -webkit-tap-highlight-color: transparent;
-      touch-action: manipulation;
     }
     .dot.on { background: #533483; border-color: #a78bfa; }
     .di { background: #e0e0ff; border-radius: 50%; pointer-events: none; }
@@ -48,16 +48,34 @@
       flex: 1; 
       position: relative; 
       background: #ecf0f1; 
-      min-height: 80vh;
-      touch-action: none;
+      min-height: 70vh;
+      width: 100%;
     }
-    canvas { position: absolute; top: 0; left: 0; }
+    canvas { 
+      position: absolute; 
+      top: 0; 
+      left: 0; 
+      width: 100%;
+      height: 100%;
+    }
     #bg { pointer-events: none; }
-    #cv { touch-action: none; }
+    #cv { 
+      pointer-events: auto;
+    }
     .spacer {
-      height: 300px;
+      height: 500px;
       background: transparent;
-      pointer-events: none;
+    }
+    .scroll-hint {
+      text-align: center;
+      padding: 20px;
+      color: #888;
+      font-family: sans-serif;
+      font-size: 12px;
+    }
+    .save-manual {
+      background: #1a5276;
+      border-color: #3498db;
     }
   </style>
 </head>
@@ -66,7 +84,6 @@
   <div id="toolbar">
     <span style="color:#e0e0ff;font-size:13px;font-family:sans-serif;font-weight:500">✎ PIZARRA</span>
     <span id="ss">✓</span>
-    <!-- Grosores más finos -->
     <div class="dot" data-sz="1"><div class="di" style="width:2px;height:2px"></div></div>
     <div class="dot" data-sz="2"><div class="di" style="width:3px;height:3px"></div></div>
     <div class="dot on" data-sz="3"><div class="di" style="width:4px;height:4px"></div></div>
@@ -84,6 +101,7 @@
     <span id="pi">1/1</span>
     <div class="btn"     id="nb">▶</div>
     <div class="btn grn" id="ap">+Pág</div>
+    <div class="btn blue" id="saveBtn">💾 Guardar</div>
     <div class="btn grn" id="ob">OCR</div>
     <div class="btn red" id="cb">Borrar</div>
   </div>
@@ -92,6 +110,7 @@
     <canvas id="cv"></canvas>
   </div>
   <div class="spacer"></div>
+  <div class="scroll-hint">↓ Desliza hacia abajo para hacer scroll ↓</div>
 </div>
 
 <!-- OCR modal -->
@@ -127,19 +146,33 @@ let svT  = null;
 
 let drawing = false;
 let lastX = 0, lastY = 0;
+let pointerIdActivo = null;
 
 function resize() {
-  const w = wr.clientWidth, h = wr.clientHeight;
+  const w = wr.clientWidth;
+  const h = wr.clientHeight;
   if (!w || !h) return;
+  
   const tmp = document.createElement('canvas');
-  tmp.width = cv.width; tmp.height = cv.height;
-  if (cv.width && cv.height) tmp.getContext('2d').drawImage(cv, 0, 0);
-  cv.width = bgc.width = w;
-  cv.height = bgc.height = h;
-  if (tmp.width && tmp.height) cx.drawImage(tmp, 0, 0);
+  tmp.width = cv.width;
+  tmp.height = cv.height;
+  if (cv.width > 0 && cv.height > 0) {
+    tmp.getContext('2d').drawImage(cv, 0, 0);
+  }
+  
+  cv.width = w;
+  cv.height = h;
+  bgc.width = w;
+  bgc.height = h;
+  
+  if (tmp.width > 0 && tmp.height > 0) {
+    cx.drawImage(tmp, 0, 0);
+  }
+  
   drawBg();
 }
-window.addEventListener('resize', resize);
+
+window.addEventListener('resize', () => setTimeout(resize, 100));
 setTimeout(resize, 100);
 
 function drawBg() {
@@ -148,35 +181,95 @@ function drawBg() {
   bx.fillRect(0, 0, w, h);
   if (bg === 'lisa') return;
   if (bg === 'ray') {
-    bx.strokeStyle = '#bdc3c7'; bx.lineWidth = 1;
-    for (let y = 40; y < h; y += 40) { bx.beginPath(); bx.moveTo(0,y); bx.lineTo(w,y); bx.stroke(); }
+    bx.strokeStyle = '#bdc3c7';
+    bx.lineWidth = 1;
+    for (let y = 40; y < h; y += 40) {
+      bx.beginPath();
+      bx.moveTo(0, y);
+      bx.lineTo(w, y);
+      bx.stroke();
+    }
     return;
   }
-  bx.strokeStyle = '#95a5a6'; bx.lineWidth = 1;
-  for (let b = 60; b < h; b += 160)
-    for (let i = 0; i < 5; i++) { bx.beginPath(); bx.moveTo(0, b+i*12); bx.lineTo(w, b+i*12); bx.stroke(); }
+  bx.strokeStyle = '#95a5a6';
+  bx.lineWidth = 1;
+  for (let b = 60; b < h; b += 160) {
+    for (let i = 0; i < 5; i++) {
+      bx.beginPath();
+      bx.moveTo(0, b + i * 12);
+      bx.lineTo(w, b + i * 12);
+      bx.stroke();
+    }
+  }
 }
 
-function save() { pages[pg] = cv.toDataURL(); }
+function save() { 
+  pages[pg] = cv.toDataURL(); 
+}
+
+function guardarCompleto() {
+  save();
+  try {
+    localStorage.setItem('piz_v4', JSON.stringify({ pages, pg, bg }));
+    ss.textContent = '✓ guardado';
+    setTimeout(() => {
+      if (ss.textContent === '✓ guardado') ss.textContent = '✓';
+    }, 2000);
+  } catch(e) { 
+    ss.textContent = '⚠ error';
+  }
+}
+
 function load(i) {
   cx.clearRect(0, 0, cv.width, cv.height);
-  if (pages[i]) { const im = new Image(); im.onload = () => cx.drawImage(im, 0, 0); im.src = pages[i]; }
-  pi.textContent = (i+1) + '/' + pages.length;
+  if (pages[i]) {
+    const im = new Image();
+    im.onload = () => cx.drawImage(im, 0, 0);
+    im.src = pages[i];
+  }
+  pi.textContent = (i + 1) + '/' + pages.length;
 }
-function persist() {
+
+function persistAuto() {
+  ss.textContent = '...';
   clearTimeout(svT);
   svT = setTimeout(() => {
     save();
-    try { localStorage.setItem('piz_v4', JSON.stringify({pages, pg, bg})); ss.textContent = '✓'; }
-    catch(e) { ss.textContent = '⚠'; }
+    try {
+      localStorage.setItem('piz_v4', JSON.stringify({ pages, pg, bg }));
+      ss.textContent = '✓';
+    } catch(e) { ss.textContent = '⚠'; }
   }, 800);
 }
 
-document.getElementById('pb').addEventListener('click', e => { e.stopPropagation(); if (pg > 0) { save(); pg--; load(pg); persist(); } });
-document.getElementById('nb').addEventListener('click', e => { e.stopPropagation(); save(); if (pg < pages.length - 1) { pg++; } else { pages.push(null); pg = pages.length - 1; } load(pg); persist(); });
-document.getElementById('ap').addEventListener('click', e => { e.stopPropagation(); save(); pages.push(null); pg = pages.length - 1; load(pg); persist(); });
+// Botón guardar manual
+document.getElementById('saveBtn').addEventListener('click', e => {
+  e.stopPropagation();
+  guardarCompleto();
+});
 
-// ========== DIBUJO SIMPLE Y FINO ==========
+document.getElementById('pb').addEventListener('click', e => {
+  e.stopPropagation();
+  if (pg > 0) { save(); pg--; load(pg); persistAuto(); }
+});
+document.getElementById('nb').addEventListener('click', e => {
+  e.stopPropagation();
+  save();
+  if (pg < pages.length - 1) { pg++; }
+  else { pages.push(null); pg = pages.length - 1; }
+  load(pg);
+  persistAuto();
+});
+document.getElementById('ap').addEventListener('click', e => {
+  e.stopPropagation();
+  save();
+  pages.push(null);
+  pg = pages.length - 1;
+  load(pg);
+  persistAuto();
+});
+
+// ========== DIBUJO ==========
 function getXY(e) {
   const r = cv.getBoundingClientRect();
   let clientX, clientY;
@@ -190,29 +283,42 @@ function getXY(e) {
   return [clientX - r.left, clientY - r.top];
 }
 
-function startDrawing(x, y) {
-  drawing = true;
-  lastX = x;
-  lastY = y;
-  
-  cx.save();
-  cx.beginPath();
-  cx.globalCompositeOperation = md === 'erase' ? 'destination-out' : 'source-over';
-  
-  if (md === 'erase') {
-    cx.arc(x, y, sz * 1.2, 0, Math.PI * 2);
-    cx.fillStyle = 'rgba(0,0,0,1)';
-    cx.fill();
-  } else {
-    cx.arc(x, y, sz * 0.3, 0, Math.PI * 2);
-    cx.fillStyle = col;
-    cx.fill();
-  }
-  cx.restore();
-}
-
-function draw(x, y) {
+function drawSmooth(x, y) {
   if (!drawing) return;
+  
+  const dx = x - lastX;
+  const dy = y - lastY;
+  const distance = Math.hypot(dx, dy);
+  
+  if (distance < 0.5) return;
+  
+  if (distance > 3) {
+    const steps = Math.min(Math.ceil(distance / 1.5), 8);
+    for (let step = 1; step <= steps; step++) {
+      const t = step / steps;
+      const ix = lastX + dx * t;
+      const iy = lastY + dy * t;
+      
+      cx.save();
+      cx.lineJoin = 'round';
+      cx.lineCap = 'round';
+      cx.globalCompositeOperation = md === 'erase' ? 'destination-out' : 'source-over';
+      
+      if (md === 'erase') {
+        cx.strokeStyle = 'rgba(0,0,0,1)';
+        cx.lineWidth = sz * 2;
+      } else {
+        cx.strokeStyle = col;
+        cx.lineWidth = sz;
+      }
+      
+      cx.beginPath();
+      cx.moveTo(step === 1 ? lastX : ix - dx/steps, step === 1 ? lastY : iy - dy/steps);
+      cx.lineTo(ix, iy);
+      cx.stroke();
+      cx.restore();
+    }
+  }
   
   cx.save();
   cx.lineJoin = 'round';
@@ -237,77 +343,109 @@ function draw(x, y) {
   lastY = y;
 }
 
+function startDrawing(x, y) {
+  drawing = true;
+  lastX = x;
+  lastY = y;
+  
+  cx.save();
+  cx.beginPath();
+  cx.globalCompositeOperation = md === 'erase' ? 'destination-out' : 'source-over';
+  
+  if (md === 'erase') {
+    cx.arc(x, y, sz * 1.2, 0, Math.PI * 2);
+    cx.fillStyle = 'rgba(0,0,0,1)';
+    cx.fill();
+  } else {
+    cx.arc(x, y, sz * 0.3, 0, Math.PI * 2);
+    cx.fillStyle = col;
+    cx.fill();
+  }
+  cx.restore();
+}
+
 function stopDrawing() {
   if (drawing) {
     drawing = false;
-    persist();
+    pointerIdActivo = null;
+    persistAuto();
   }
 }
 
-// Pointer events
+// Eventos - permiten scroll
 cv.addEventListener('pointerdown', (e) => {
-  e.preventDefault();
-  if (drawing) return;
+  if (drawing || pointerIdActivo !== null) return;
+  
+  pointerIdActivo = e.pointerId;
   cv.setPointerCapture(e.pointerId);
   const [x, y] = getXY(e);
   startDrawing(x, y);
 });
 
 cv.addEventListener('pointermove', (e) => {
+  if (!drawing || e.pointerId !== pointerIdActivo) return;
   e.preventDefault();
-  if (!drawing) return;
   const [x, y] = getXY(e);
-  draw(x, y);
+  drawSmooth(x, y);
 });
 
 cv.addEventListener('pointerup', (e) => {
-  e.preventDefault();
-  stopDrawing();
+  if (e.pointerId === pointerIdActivo) stopDrawing();
 });
 cv.addEventListener('pointercancel', (e) => {
-  e.preventDefault();
-  stopDrawing();
+  if (e.pointerId === pointerIdActivo) stopDrawing();
 });
 
 // Touch events
 cv.addEventListener('touchstart', (e) => {
-  e.preventDefault();
-  if (drawing) return;
+  if (drawing || pointerIdActivo !== null) return;
+  
+  pointerIdActivo = 'touch';
   const [x, y] = getXY(e);
   startDrawing(x, y);
 });
+
 cv.addEventListener('touchmove', (e) => {
+  if (!drawing || pointerIdActivo !== 'touch') return;
   e.preventDefault();
-  if (!drawing) return;
   const [x, y] = getXY(e);
-  draw(x, y);
+  drawSmooth(x, y);
 });
+
 cv.addEventListener('touchend', (e) => {
-  e.preventDefault();
-  stopDrawing();
+  if (pointerIdActivo === 'touch') stopDrawing();
 });
 cv.addEventListener('touchcancel', (e) => {
-  e.preventDefault();
-  stopDrawing();
+  if (pointerIdActivo === 'touch') stopDrawing();
 });
 
 // Controles
 document.querySelectorAll('[data-sz]').forEach(b => b.addEventListener('click', e => {
-  e.stopPropagation(); sz = +b.dataset.sz;
-  document.querySelectorAll('[data-sz]').forEach(x => x.classList.remove('on')); b.classList.add('on');
+  e.stopPropagation();
+  sz = +b.dataset.sz;
+  document.querySelectorAll('[data-sz]').forEach(x => x.classList.remove('on'));
+  b.classList.add('on');
 }));
 document.querySelectorAll('[data-md]').forEach(b => b.addEventListener('click', e => {
-  e.stopPropagation(); md = b.dataset.md;
-  document.querySelectorAll('[data-md]').forEach(x => x.classList.remove('on')); b.classList.add('on');
+  e.stopPropagation();
+  md = b.dataset.md;
+  document.querySelectorAll('[data-md]').forEach(x => x.classList.remove('on'));
+  b.classList.add('on');
 }));
 document.querySelectorAll('[data-bg]').forEach(b => b.addEventListener('click', e => {
-  e.stopPropagation(); bg = b.dataset.bg;
-  document.querySelectorAll('[data-bg]').forEach(x => x.classList.remove('on')); b.classList.add('on');
-  drawBg(); persist();
+  e.stopPropagation();
+  bg = b.dataset.bg;
+  document.querySelectorAll('[data-bg]').forEach(x => x.classList.remove('on'));
+  b.classList.add('on');
+  drawBg();
+  persistAuto();
 }));
 document.getElementById('cp').addEventListener('input', e => col = e.target.value);
 document.getElementById('cb').addEventListener('click', e => {
-  e.stopPropagation(); cx.clearRect(0,0,cv.width,cv.height); pages[pg]=null; persist();
+  e.stopPropagation();
+  cx.clearRect(0, 0, cv.width, cv.height);
+  pages[pg] = null;
+  persistAuto();
 });
 
 // OCR
@@ -315,28 +453,60 @@ const om = document.getElementById('om');
 const os = document.getElementById('os');
 const ot = document.getElementById('ot');
 document.getElementById('ob').addEventListener('click', async e => {
-  e.stopPropagation(); om.style.display = 'flex'; ot.value = ''; os.textContent = 'Preparando...';
-  const m = document.createElement('canvas'); m.width = cv.width; m.height = cv.height;
-  const mx = m.getContext('2d'); mx.fillStyle = '#fff'; mx.fillRect(0,0,m.width,m.height); mx.drawImage(cv,0,0);
+  e.stopPropagation();
+  om.style.display = 'flex';
+  ot.value = '';
+  os.textContent = 'Preparando...';
+  const m = document.createElement('canvas');
+  m.width = cv.width;
+  m.height = cv.height;
+  const mx = m.getContext('2d');
+  mx.fillStyle = '#fff';
+  mx.fillRect(0, 0, m.width, m.height);
+  mx.drawImage(cv, 0, 0);
   try {
     os.textContent = 'Cargando OCR...';
-    const w = await Tesseract.createWorker('spa', 1, { logger: x => { if (x.status==='recognizing text') os.textContent='Reconociendo '+Math.round(x.progress*100)+'%'; }});
-    const { data:{text} } = await w.recognize(m); await w.terminate();
-    ot.value = text.trim() || '(sin texto)'; os.textContent = 'Listo ✓';
-  } catch(err) { os.textContent = 'Error: '+err.message; }
+    const w = await Tesseract.createWorker('spa', 1, {
+      logger: x => {
+        if (x.status === 'recognizing text')
+          os.textContent = 'Reconociendo ' + Math.round(x.progress * 100) + '%';
+      }
+    });
+    const { data: { text } } = await w.recognize(m);
+    await w.terminate();
+    ot.value = text.trim() || '(sin texto)';
+    os.textContent = 'Listo ✓';
+  } catch(err) { os.textContent = 'Error: ' + err.message; }
 });
-document.getElementById('cpy').addEventListener('click', e => { e.stopPropagation(); navigator.clipboard.writeText(ot.value).then(()=>os.textContent='¡Copiado!'); });
-document.getElementById('dl').addEventListener('click', e => { e.stopPropagation(); const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([ot.value],{type:'text/plain'})); a.download='texto.txt'; a.click(); });
-document.getElementById('cl').addEventListener('click', e => { e.stopPropagation(); om.style.display='none'; });
+document.getElementById('cpy').addEventListener('click', e => {
+  e.stopPropagation();
+  navigator.clipboard.writeText(ot.value).then(() => os.textContent = '¡Copiado!');
+});
+document.getElementById('dl').addEventListener('click', e => {
+  e.stopPropagation();
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([ot.value], { type: 'text/plain' }));
+  a.download = 'texto.txt';
+  a.click();
+});
+document.getElementById('cl').addEventListener('click', e => {
+  e.stopPropagation();
+  om.style.display = 'none';
+});
 
 // Init
 resize();
 try {
   const d = JSON.parse(localStorage.getItem('piz_v4'));
-  if (d) { pages=d.pages||[null]; pg=d.pg||0; bg=d.bg||'ray';
-    document.querySelectorAll('[data-bg]').forEach(b=>b.classList.toggle('on', b.dataset.bg===bg)); }
+  if (d) {
+    pages = d.pages || [null];
+    pg = d.pg || 0;
+    bg = d.bg || 'ray';
+    document.querySelectorAll('[data-bg]').forEach(b => b.classList.toggle('on', b.dataset.bg === bg));
+  }
 } catch(_) {}
-drawBg(); load(pg);
+drawBg();
+load(pg);
 </script>
 </body>
 </html>
