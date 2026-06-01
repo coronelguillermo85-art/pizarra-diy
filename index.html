@@ -40,9 +40,9 @@
       width: 32px; height: 32px; border-radius: 50%; border: 2px solid #533483;
       padding: 0; cursor: pointer; flex-shrink: 0;
     }
-    #canvas-wrap { flex: 1; position: relative; overflow: hidden; }
-    #bgLayer { position: absolute; inset: 0; pointer-events: none; }
-    #drawCanvas { position: absolute; inset: 0; touch-action: none; }
+    #canvas-wrap { flex: 1; position: relative; overflow-y: scroll; overflow-x: hidden; }
+    #bgLayer { position: absolute; top: 0; left: 0; pointer-events: none; }
+    #drawCanvas { position: absolute; top: 0; left: 0; touch-action: pan-y; }
     #pageFlash {
       position: absolute; inset: 0; background: white; opacity: 0;
       pointer-events: none; transition: opacity 0.15s; z-index: 10;
@@ -91,6 +91,7 @@
       <span id="pageIndicator">1 / 1</span>
       <div class="tb-btn page-btn" id="nextBtn">▼</div>
       <div class="tb-btn ocr-btn" id="addPageBtn">+ Pág</div>
+      <div class="tb-btn" id="scrollModeBtn">☰ Scroll</div>
       <div class="sep"></div>
       <div class="tb-btn ocr-btn" id="ocrBtn">OCR</div>
       <div class="tb-btn danger" id="clearBtn">Borrar</div>
@@ -142,14 +143,16 @@ let activeId = null;
 let lastX = 0, lastY = 0;
 
 // ── Resize ────────────────────────────────────────────────────
+const CANVAS_HEIGHT = 5000; // hoja larga
+
 function resizeCanvases() {
-  const w = wrap.clientWidth, h = wrap.clientHeight;
-  if (!w || !h) return;
+  const w = wrap.clientWidth;
+  if (!w) return;
   const tmp = document.createElement('canvas');
   tmp.width = dc.width; tmp.height = dc.height;
   if (dc.width > 0 && dc.height > 0) tmp.getContext('2d').drawImage(dc, 0, 0);
-  dc.width = w; dc.height = h;
-  bgCanvas.width = w; bgCanvas.height = h;
+  dc.width = w; dc.height = CANVAS_HEIGHT;
+  bgCanvas.width = w; bgCanvas.height = CANVAS_HEIGHT;
   if (tmp.width > 0 && tmp.height > 0) ctx.drawImage(tmp, 0, 0);
   drawBg();
 }
@@ -261,8 +264,18 @@ function loadStorage() {
 // ── Dibujo — solo Pointer Events ─────────────────────────────
 function getXY(e) {
   const r = dc.getBoundingClientRect();
-  return [e.clientX - r.left, e.clientY - r.top];
+  return [e.clientX - r.left, e.clientY - r.top + wrap.scrollTop];
 }
+
+let scrollMode = false;
+
+document.getElementById('scrollModeBtn').addEventListener('pointerdown', e => {
+  e.stopPropagation();
+  scrollMode = !scrollMode;
+  dc.style.touchAction = scrollMode ? 'pan-y' : 'none';
+  document.getElementById('scrollModeBtn').classList.toggle('active', scrollMode);
+  document.getElementById('scrollModeBtn').textContent = scrollMode ? '✎ Dibujar' : '☰ Scroll';
+});
 
 function applyStrokeStyle(pressure) {
   ctx.lineJoin = 'round';
@@ -279,6 +292,7 @@ function applyStrokeStyle(pressure) {
 }
 
 dc.addEventListener('pointerdown', e => {
+  if (scrollMode) return;
   if (drawing) return;
   e.preventDefault();
   drawing  = true;
@@ -290,6 +304,7 @@ dc.addEventListener('pointerdown', e => {
 }, { passive: false });
 
 dc.addEventListener('pointermove', e => {
+  if (scrollMode) return;
   e.preventDefault();
   if (!drawing && e.buttons > 0) {
     drawing  = true;
