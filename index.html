@@ -85,7 +85,6 @@
 
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script>
-// elementos
 const bgc = document.getElementById('bg');
 const bx  = bgc.getContext('2d');
 const cv  = document.getElementById('cv');
@@ -94,7 +93,6 @@ const wr  = document.getElementById('wrap');
 const pi  = document.getElementById('pi');
 const ss  = document.getElementById('ss');
 
-// estado
 let bg   = 'ray';
 let md   = 'draw';
 let sz   = 3;
@@ -103,27 +101,23 @@ let pages = [null];
 let pg   = 0;
 let svT  = null;
 
-// dibujo
-let on = false;
-let aid = null;
-let lx = 0, ly = 0;
+let drawing = false;
+let lastX = 0, lastY = 0;
 
-// resize
 function resize() {
   const w = wr.clientWidth, h = wr.clientHeight;
   if (!w || !h) return;
-  const t = document.createElement('canvas');
-  t.width = cv.width; t.height = cv.height;
-  if (cv.width && cv.height) t.getContext('2d').drawImage(cv, 0, 0);
-  cv.width  = bgc.width  = w;
+  const tmp = document.createElement('canvas');
+  tmp.width = cv.width; tmp.height = cv.height;
+  if (cv.width && cv.height) tmp.getContext('2d').drawImage(cv, 0, 0);
+  cv.width = bgc.width = w;
   cv.height = bgc.height = h;
-  if (t.width && t.height) cx.drawImage(t, 0, 0);
+  if (tmp.width && tmp.height) cx.drawImage(tmp, 0, 0);
   drawBg();
 }
 window.addEventListener('resize', resize);
 setTimeout(resize, 100);
 
-// fondo
 function drawBg() {
   const w = bgc.width, h = bgc.height;
   bx.fillStyle = '#ecf0f1';
@@ -139,100 +133,156 @@ function drawBg() {
     for (let i = 0; i < 5; i++) { bx.beginPath(); bx.moveTo(0, b+i*12); bx.lineTo(w, b+i*12); bx.stroke(); }
 }
 
-// páginas
-function save()   { pages[pg] = cv.toDataURL(); }
-function load(i)  {
+function save() { pages[pg] = cv.toDataURL(); }
+function load(i) {
   cx.clearRect(0, 0, cv.width, cv.height);
   if (pages[i]) { const im = new Image(); im.onload = () => cx.drawImage(im, 0, 0); im.src = pages[i]; }
   pi.textContent = (i+1) + '/' + pages.length;
 }
 function persist() {
-  ss.textContent = '...';
   clearTimeout(svT);
   svT = setTimeout(() => {
     save();
     try { localStorage.setItem('piz_v4', JSON.stringify({pages, pg, bg})); ss.textContent = '✓'; }
     catch(e) { ss.textContent = '⚠'; }
-  }, 1500);
+  }, 800);
 }
 
-document.getElementById('pb').addEventListener('pointerdown', e => {
-  e.stopPropagation(); if (pg > 0) { save(); pg--; load(pg); persist(); }
-});
-document.getElementById('nb').addEventListener('pointerdown', e => {
-  e.stopPropagation(); save();
-  if (pg < pages.length - 1) { pg++; } else { pages.push(null); pg = pages.length - 1; }
-  load(pg); persist();
-});
-document.getElementById('ap').addEventListener('pointerdown', e => {
-  e.stopPropagation(); save(); pages.push(null); pg = pages.length - 1; load(pg); persist();
-});
+document.getElementById('pb').addEventListener('click', e => { e.stopPropagation(); if (pg > 0) { save(); pg--; load(pg); persist(); } });
+document.getElementById('nb').addEventListener('click', e => { e.stopPropagation(); save(); if (pg < pages.length - 1) { pg++; } else { pages.push(null); pg = pages.length - 1; } load(pg); persist(); });
+document.getElementById('ap').addEventListener('click', e => { e.stopPropagation(); save(); pages.push(null); pg = pages.length - 1; load(pg); persist(); });
 
-// ========== DIBUJO ORIGINAL (el que funcionaba) ==========
-function xy(e) {
+// ========== DIBUJO CORREGIDO - SIN PÉRDIDA DE TRAZO ==========
+function getXY(e) {
   const r = cv.getBoundingClientRect();
-  return [e.clientX - r.left, e.clientY - r.top];
+  let clientX, clientY;
+  if (e.touches) {
+    clientX = e.touches[0].clientX;
+    clientY = e.touches[0].clientY;
+  } else {
+    clientX = e.clientX;
+    clientY = e.clientY;
+  }
+  return [clientX - r.left, clientY - r.top];
 }
 
-cv.addEventListener('pointerdown', e => {
-  if (on) return;
-  e.preventDefault();
-  on  = true;
-  aid = e.pointerId;
-  cv.setPointerCapture(e.pointerId);
-  [lx, ly] = xy(e);
-}, { passive: false });
-
-cv.addEventListener('pointermove', e => {
-  e.preventDefault();
-  if (!on && e.buttons > 0) {
-    on = true; aid = e.pointerId;
-    try { cv.setPointerCapture(e.pointerId); } catch(_) {}
-    [lx, ly] = xy(e); return;
-  }
-  if (!on || e.pointerId !== aid) return;
-  const [x, y] = xy(e);
-  if (Math.hypot(x-lx, y-ly) < 0.5) return;
+function startDrawing(x, y) {
+  drawing = true;
+  lastX = x;
+  lastY = y;
+  
   cx.save();
-  cx.lineJoin = cx.lineCap = 'round';
+  cx.beginPath();
+  cx.globalCompositeOperation = md === 'erase' ? 'destination-out' : 'source-over';
+  
   if (md === 'erase') {
-    cx.globalCompositeOperation = 'destination-out';
-    cx.strokeStyle = 'rgba(0,0,0,1)';
-    cx.lineWidth = sz * 3;
+    cx.arc(x, y, sz * 1.2, 0, Math.PI * 2);
+    cx.fillStyle = 'rgba(0,0,0,1)';
+    cx.fill();
   } else {
-    cx.globalCompositeOperation = 'source-over';
+    cx.arc(x, y, sz * 0.3, 0, Math.PI * 2);
+    cx.fillStyle = col;
+    cx.fill();
+  }
+  cx.restore();
+}
+
+function draw(x, y) {
+  if (!drawing) return;
+  
+  cx.save();
+  cx.lineJoin = 'round';
+  cx.lineCap = 'round';
+  cx.globalCompositeOperation = md === 'erase' ? 'destination-out' : 'source-over';
+  
+  if (md === 'erase') {
+    cx.strokeStyle = 'rgba(0,0,0,1)';
+    cx.lineWidth = sz * 2.5;
+  } else {
     cx.strokeStyle = col;
     cx.lineWidth = sz;
   }
-  cx.beginPath(); cx.moveTo(lx, ly); cx.lineTo(x, y); cx.stroke();
+  
+  cx.beginPath();
+  cx.moveTo(lastX, lastY);
+  cx.lineTo(x, y);
+  cx.stroke();
   cx.restore();
-  lx = x; ly = y;
-}, { passive: false });
-
-function stopDraw(e) {
-  if (e && e.pointerId !== aid) return;
-  on = false; aid = null; persist();
+  
+  lastX = x;
+  lastY = y;
 }
-cv.addEventListener('pointerup',     stopDraw);
-cv.addEventListener('pointercancel', stopDraw);
-cv.addEventListener('pointerleave',  stopDraw);
 
-// controles
-document.querySelectorAll('[data-sz]').forEach(b => b.addEventListener('pointerdown', e => {
+function stopDrawing() {
+  if (drawing) {
+    drawing = false;
+    persist();
+  }
+}
+
+// Pointer events
+cv.addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  if (drawing) return;
+  cv.setPointerCapture(e.pointerId);
+  const [x, y] = getXY(e);
+  startDrawing(x, y);
+});
+
+cv.addEventListener('pointermove', (e) => {
+  e.preventDefault();
+  if (!drawing) return;
+  const [x, y] = getXY(e);
+  draw(x, y);
+});
+
+cv.addEventListener('pointerup', (e) => {
+  e.preventDefault();
+  stopDrawing();
+});
+cv.addEventListener('pointercancel', (e) => {
+  e.preventDefault();
+  stopDrawing();
+});
+
+// Touch events (respaldo)
+cv.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  if (drawing) return;
+  const [x, y] = getXY(e);
+  startDrawing(x, y);
+});
+cv.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  if (!drawing) return;
+  const [x, y] = getXY(e);
+  draw(x, y);
+});
+cv.addEventListener('touchend', (e) => {
+  e.preventDefault();
+  stopDrawing();
+});
+cv.addEventListener('touchcancel', (e) => {
+  e.preventDefault();
+  stopDrawing();
+});
+
+// Controles
+document.querySelectorAll('[data-sz]').forEach(b => b.addEventListener('click', e => {
   e.stopPropagation(); sz = +b.dataset.sz;
   document.querySelectorAll('[data-sz]').forEach(x => x.classList.remove('on')); b.classList.add('on');
 }));
-document.querySelectorAll('[data-md]').forEach(b => b.addEventListener('pointerdown', e => {
+document.querySelectorAll('[data-md]').forEach(b => b.addEventListener('click', e => {
   e.stopPropagation(); md = b.dataset.md;
   document.querySelectorAll('[data-md]').forEach(x => x.classList.remove('on')); b.classList.add('on');
 }));
-document.querySelectorAll('[data-bg]').forEach(b => b.addEventListener('pointerdown', e => {
+document.querySelectorAll('[data-bg]').forEach(b => b.addEventListener('click', e => {
   e.stopPropagation(); bg = b.dataset.bg;
   document.querySelectorAll('[data-bg]').forEach(x => x.classList.remove('on')); b.classList.add('on');
   drawBg(); persist();
 }));
 document.getElementById('cp').addEventListener('input', e => col = e.target.value);
-document.getElementById('cb').addEventListener('pointerdown', e => {
+document.getElementById('cb').addEventListener('click', e => {
   e.stopPropagation(); cx.clearRect(0,0,cv.width,cv.height); pages[pg]=null; persist();
 });
 
@@ -240,7 +290,7 @@ document.getElementById('cb').addEventListener('pointerdown', e => {
 const om = document.getElementById('om');
 const os = document.getElementById('os');
 const ot = document.getElementById('ot');
-document.getElementById('ob').addEventListener('pointerdown', async e => {
+document.getElementById('ob').addEventListener('click', async e => {
   e.stopPropagation(); om.style.display = 'flex'; ot.value = ''; os.textContent = 'Preparando...';
   const m = document.createElement('canvas'); m.width = cv.width; m.height = cv.height;
   const mx = m.getContext('2d'); mx.fillStyle = '#fff'; mx.fillRect(0,0,m.width,m.height); mx.drawImage(cv,0,0);
@@ -251,13 +301,11 @@ document.getElementById('ob').addEventListener('pointerdown', async e => {
     ot.value = text.trim() || '(sin texto)'; os.textContent = 'Listo ✓';
   } catch(err) { os.textContent = 'Error: '+err.message; }
 });
-document.getElementById('cpy').addEventListener('pointerdown', e => { e.stopPropagation(); navigator.clipboard.writeText(ot.value).then(()=>os.textContent='¡Copiado!'); });
-document.getElementById('dl').addEventListener('pointerdown', e => {
-  e.stopPropagation(); const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([ot.value],{type:'text/plain'})); a.download='texto.txt'; a.click();
-});
-document.getElementById('cl').addEventListener('pointerdown', e => { e.stopPropagation(); om.style.display='none'; });
+document.getElementById('cpy').addEventListener('click', e => { e.stopPropagation(); navigator.clipboard.writeText(ot.value).then(()=>os.textContent='¡Copiado!'); });
+document.getElementById('dl').addEventListener('click', e => { e.stopPropagation(); const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([ot.value],{type:'text/plain'})); a.download='texto.txt'; a.click(); });
+document.getElementById('cl').addEventListener('click', e => { e.stopPropagation(); om.style.display='none'; });
 
-// init
+// Init
 resize();
 try {
   const d = JSON.parse(localStorage.getItem('piz_v4'));
