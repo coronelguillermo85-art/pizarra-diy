@@ -3,15 +3,27 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>Pizarra DIY</title>
+  <title>Pizarra DIY - Con scroll bloqueable</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { overflow: hidden; height: 100vh; width: 100vw; position: fixed; }
-    #app { display: flex; flex-direction: column; height: 100vh; width: 100%; }
+    body { 
+      overflow: auto; 
+      height: 100vh; 
+      width: 100vw; 
+    }
+    /* Cuando se está dibujando, se bloquea el scroll */
+    body.drawing-mode {
+      overflow: hidden;
+      position: fixed;
+    }
+    #app { display: flex; flex-direction: column; min-height: 100vh; width: 100%; }
     #toolbar {
       background: #16213e; padding: 8px 10px;
       display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
       user-select: none; flex-shrink: 0;
+      position: sticky;
+      top: 0;
+      z-index: 10;
     }
     .btn {
       background: #0f3460; color: #e0e0ff; border: 1px solid #533483;
@@ -37,10 +49,22 @@
     }
     #pi { color: #a78bfa; font-size: 13px; font-family: sans-serif; font-weight: 600; min-width: 40px; text-align: center; }
     #ss { color: #a78bfa; font-size: 11px; font-family: sans-serif; }
-    #wrap { flex: 1; position: relative; background: #ecf0f1; overflow: hidden; touch-action: none; }
+    #wrap { 
+      flex: 1; 
+      position: relative; 
+      background: #ecf0f1; 
+      min-height: 80vh;
+      touch-action: none;
+    }
     canvas { position: absolute; top: 0; left: 0; }
     #bg { pointer-events: none; }
     #cv { touch-action: none; }
+    /* Espacio extra para poder hacer scroll hacia abajo */
+    .spacer {
+      height: 200px;
+      background: transparent;
+      pointer-events: none;
+    }
   </style>
 </head>
 <body>
@@ -68,6 +92,7 @@
     <canvas id="bg"></canvas>
     <canvas id="cv"></canvas>
   </div>
+  <div class="spacer"></div>
 </div>
 
 <!-- OCR modal -->
@@ -103,6 +128,24 @@ let svT  = null;
 
 let drawing = false;
 let lastX = 0, lastY = 0;
+let scrollYAntes = 0;
+
+// Función para bloquear el scroll mientras se dibuja
+function bloquearScroll() {
+  if (!document.body.classList.contains('drawing-mode')) {
+    scrollYAntes = window.scrollY;
+    document.body.classList.add('drawing-mode');
+    document.body.style.top = `-${scrollYAntes}px`;
+  }
+}
+
+function desbloquearScroll() {
+  if (document.body.classList.contains('drawing-mode')) {
+    document.body.classList.remove('drawing-mode');
+    document.body.style.top = '';
+    window.scrollTo(0, scrollYAntes);
+  }
+}
 
 function resize() {
   const w = wr.clientWidth, h = wr.clientHeight;
@@ -152,7 +195,7 @@ document.getElementById('pb').addEventListener('click', e => { e.stopPropagation
 document.getElementById('nb').addEventListener('click', e => { e.stopPropagation(); save(); if (pg < pages.length - 1) { pg++; } else { pages.push(null); pg = pages.length - 1; } load(pg); persist(); });
 document.getElementById('ap').addEventListener('click', e => { e.stopPropagation(); save(); pages.push(null); pg = pages.length - 1; load(pg); persist(); });
 
-// ========== DIBUJO CORREGIDO - SIN PÉRDIDA DE TRAZO ==========
+// ========== DIBUJO CON BLOQUEO DE SCROLL ==========
 function getXY(e) {
   const r = cv.getBoundingClientRect();
   let clientX, clientY;
@@ -170,6 +213,7 @@ function startDrawing(x, y) {
   drawing = true;
   lastX = x;
   lastY = y;
+  bloquearScroll();  // ← Bloquea el scroll al empezar a dibujar
   
   cx.save();
   cx.beginPath();
@@ -216,6 +260,7 @@ function draw(x, y) {
 function stopDrawing() {
   if (drawing) {
     drawing = false;
+    desbloquearScroll();  // ← Reactiva el scroll al terminar
     persist();
   }
 }
