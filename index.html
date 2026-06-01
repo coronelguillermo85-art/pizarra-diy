@@ -1,10 +1,10 @@
-```html
+```html id="rjuxw4"
 <!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Pizarra Pro</title>
+<title>Pizarra Pro Ultra</title>
 
 <style>
 
@@ -16,8 +16,8 @@
 
 body{
   overflow:hidden;
-  background:#1e1e1e;
   height:100vh;
+  background:#1b1b1b;
   font-family:Arial,sans-serif;
 }
 
@@ -28,14 +28,13 @@ body{
 }
 
 #toolbar{
-  background:#232323;
+  background:#252525;
   border-bottom:1px solid #444;
-  padding:10px;
+  padding:8px;
   display:flex;
   align-items:center;
-  gap:8px;
+  gap:6px;
   flex-wrap:wrap;
-  z-index:10;
 }
 
 .title{
@@ -49,10 +48,9 @@ body{
   color:white;
   border:none;
   border-radius:8px;
-  padding:8px 12px;
+  padding:7px 11px;
   cursor:pointer;
-  transition:.2s;
-  font-size:14px;
+  font-size:13px;
 }
 
 .btn:hover{
@@ -64,19 +62,19 @@ body{
 }
 
 .btn.red{
-  background:#8b2d2d;
+  background:#8d2f2f;
 }
 
 .btn.green{
-  background:#2d8f4e;
+  background:#2c9a55;
 }
 
 .dot{
-  width:28px;
-  height:28px;
+  width:26px;
+  height:26px;
   border-radius:50%;
-  background:#666;
   border:2px solid transparent;
+  background:#777;
   cursor:pointer;
 }
 
@@ -85,21 +83,21 @@ body{
 }
 
 #colorPicker{
-  width:35px;
-  height:35px;
+  width:34px;
+  height:34px;
   border:none;
   background:none;
   cursor:pointer;
 }
 
 #status{
-  color:#8bc34a;
-  font-size:13px;
+  color:#9be38b;
+  font-size:12px;
 }
 
 #pageInfo{
   color:white;
-  min-width:40px;
+  min-width:45px;
   text-align:center;
 }
 
@@ -125,45 +123,6 @@ canvas{
   z-index:2;
 }
 
-#ocrModal{
-  position:fixed;
-  inset:0;
-  background:rgba(0,0,0,.8);
-  display:none;
-  align-items:center;
-  justify-content:center;
-  z-index:999;
-  padding:20px;
-}
-
-#ocrBox{
-  background:#232323;
-  border:1px solid #555;
-  border-radius:12px;
-  width:100%;
-  max-width:500px;
-  padding:16px;
-  display:flex;
-  flex-direction:column;
-  gap:10px;
-}
-
-#ocrStatus{
-  color:#8bc34a;
-}
-
-#ocrText{
-  width:100%;
-  min-height:200px;
-  resize:vertical;
-  background:#111;
-  color:white;
-  border:1px solid #444;
-  border-radius:8px;
-  padding:10px;
-  outline:none;
-}
-
 </style>
 </head>
 
@@ -173,20 +132,23 @@ canvas{
 
 <div id="toolbar">
 
-<div class="title">🖊 Pizarra Pro</div>
+<div class="title">🖊 Pizarra Pro Ultra</div>
 
 <div class="btn on" data-tool="draw">Lápiz</div>
 <div class="btn" data-tool="erase">Goma</div>
 
+<div class="dot" data-size="1"></div>
 <div class="dot" data-size="2"></div>
-<div class="dot on" data-size="4"></div>
+<div class="dot on" data-size="3"></div>
+<div class="dot" data-size="5"></div>
 <div class="dot" data-size="8"></div>
-<div class="dot" data-size="14"></div>
+<div class="dot" data-size="12"></div>
 
 <input type="color" id="colorPicker" value="#111111">
 
-<div class="btn" id="bgPlain">Lisa</div>
-<div class="btn on" id="bgLines">Rayada</div>
+<div class="btn" id="plainBtn">Lisa</div>
+<div class="btn on" id="linesBtn">Rayada</div>
+<div class="btn" id="musicBtn">Pentagrama</div>
 
 <div class="btn" id="prevBtn">◀</div>
 
@@ -194,11 +156,9 @@ canvas{
 
 <div class="btn" id="nextBtn">▶</div>
 
-<div class="btn green" id="addPageBtn">+ Página</div>
+<div class="btn green" id="addBtn">+ Página</div>
 
-<div class="btn green" id="saveBtn">💾 Guardar</div>
-
-<div class="btn" id="ocrBtn">OCR</div>
+<div class="btn green" id="saveBtn">💾</div>
 
 <div class="btn red" id="clearBtn">Borrar</div>
 
@@ -207,35 +167,13 @@ canvas{
 </div>
 
 <div id="wrap">
-  <canvas id="bg"></canvas>
-  <canvas id="cv"></canvas>
-</div>
 
-</div>
-
-<div id="ocrModal">
-
-<div id="ocrBox">
-
-<div id="ocrStatus">OCR listo</div>
-
-<textarea id="ocrText"></textarea>
-
-<div style="display:flex;gap:10px;flex-wrap:wrap">
-
-<button class="btn green" id="copyBtn">Copiar</button>
-
-<button class="btn green" id="downloadBtn">Descargar TXT</button>
-
-<button class="btn red" id="closeOcrBtn">Cerrar</button>
+<canvas id="bg"></canvas>
+<canvas id="cv"></canvas>
 
 </div>
 
 </div>
-
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
 <script>
 
@@ -251,8 +189,9 @@ const statusEl = document.getElementById("status");
 const pageInfo = document.getElementById("pageInfo");
 
 let tool = "draw";
-let size = 4;
+let size = 3;
 let color = "#111111";
+
 let backgroundMode = "lines";
 
 let drawing = false;
@@ -262,6 +201,8 @@ let lastY = 0;
 
 let pages = [null];
 let currentPage = 0;
+
+let saveTimeout = null;
 
 function resizeCanvas(){
 
@@ -298,17 +239,46 @@ function drawBackground(){
   bx.fillStyle = "#ffffff";
   bx.fillRect(0,0,bg.width,bg.height);
 
-  if(backgroundMode === "plain") return;
+  if(backgroundMode === "plain"){
+    return;
+  }
 
-  bx.strokeStyle = "#d0d0d0";
-  bx.lineWidth = 1;
+  if(backgroundMode === "lines"){
 
-  for(let y=40;y<bg.height;y+=40){
+    bx.strokeStyle = "#d4d4d4";
+    bx.lineWidth = 1;
 
-    bx.beginPath();
-    bx.moveTo(0,y);
-    bx.lineTo(bg.width,y);
-    bx.stroke();
+    for(let y=40;y<bg.height;y+=40){
+
+      bx.beginPath();
+      bx.moveTo(0,y);
+      bx.lineTo(bg.width,y);
+      bx.stroke();
+
+    }
+
+    return;
+  }
+
+  if(backgroundMode === "music"){
+
+    bx.strokeStyle = "#999";
+    bx.lineWidth = 1;
+
+    for(let block=60; block<bg.height; block+=140){
+
+      for(let i=0;i<5;i++){
+
+        const y = block + i*14;
+
+        bx.beginPath();
+        bx.moveTo(0,y);
+        bx.lineTo(bg.width,y);
+        bx.stroke();
+
+      }
+
+    }
 
   }
 
@@ -316,19 +286,32 @@ function drawBackground(){
 
 function savePage(){
 
-  pages[currentPage] = cv.toDataURL();
+  clearTimeout(saveTimeout);
 
-  localStorage.setItem("pizarra_pro",JSON.stringify({
-    pages,
-    currentPage,
-    backgroundMode
-  }));
+  saveTimeout = setTimeout(()=>{
 
-  statusEl.textContent = "✓ Guardado";
+    try{
 
-  setTimeout(()=>{
-    statusEl.textContent = "✓";
-  },1500);
+      pages[currentPage] = cv.toDataURL("image/webp",0.8);
+
+      localStorage.setItem(
+        "pizarra_ultra",
+        JSON.stringify({
+          pages,
+          currentPage,
+          backgroundMode
+        })
+      );
+
+      statusEl.textContent = "✓";
+
+    }catch(e){
+
+      statusEl.textContent = "⚠";
+
+    }
+
+  },500);
 
 }
 
@@ -341,7 +324,9 @@ function loadPage(index){
     const img = new Image();
 
     img.onload = ()=>{
+
       cx.drawImage(img,0,0);
+
     };
 
     img.src = pages[index];
@@ -386,13 +371,18 @@ function draw(e){
 
   if(tool === "erase"){
 
-    cx.globalCompositeOperation = "destination-out";
+    cx.globalCompositeOperation =
+      "destination-out";
+
     cx.lineWidth = size * 2;
 
   }else{
 
-    cx.globalCompositeOperation = "source-over";
+    cx.globalCompositeOperation =
+      "source-over";
+
     cx.strokeStyle = color;
+
     cx.lineWidth = size;
 
   }
@@ -400,6 +390,7 @@ function draw(e){
   cx.beginPath();
 
   cx.moveTo(lastX,lastY);
+
   cx.lineTo(pos.x,pos.y);
 
   cx.stroke();
@@ -468,8 +459,53 @@ document.getElementById("colorPicker")
 
 });
 
-document.getElementById("saveBtn")
-.addEventListener("click",savePage);
+document.getElementById("plainBtn")
+.addEventListener("click",()=>{
+
+  backgroundMode = "plain";
+
+  activateBgButton("plainBtn");
+
+  drawBackground();
+
+});
+
+document.getElementById("linesBtn")
+.addEventListener("click",()=>{
+
+  backgroundMode = "lines";
+
+  activateBgButton("linesBtn");
+
+  drawBackground();
+
+});
+
+document.getElementById("musicBtn")
+.addEventListener("click",()=>{
+
+  backgroundMode = "music";
+
+  activateBgButton("musicBtn");
+
+  drawBackground();
+
+});
+
+function activateBgButton(id){
+
+  ["plainBtn","linesBtn","musicBtn"]
+  .forEach(x=>{
+
+    document.getElementById(x)
+    .classList.remove("on");
+
+  });
+
+  document.getElementById(id)
+  .classList.add("on");
+
+}
 
 document.getElementById("clearBtn")
 .addEventListener("click",()=>{
@@ -479,6 +515,15 @@ document.getElementById("clearBtn")
   pages[currentPage] = null;
 
   savePage();
+
+});
+
+document.getElementById("saveBtn")
+.addEventListener("click",()=>{
+
+  savePage();
+
+  statusEl.textContent = "✓ Guardado";
 
 });
 
@@ -518,7 +563,7 @@ document.getElementById("prevBtn")
 
 });
 
-document.getElementById("addPageBtn")
+document.getElementById("addBtn")
 .addEventListener("click",()=>{
 
   savePage();
@@ -531,127 +576,11 @@ document.getElementById("addPageBtn")
 
 });
 
-document.getElementById("bgPlain")
-.addEventListener("click",()=>{
-
-  backgroundMode = "plain";
-
-  document.getElementById("bgPlain")
-  .classList.add("on");
-
-  document.getElementById("bgLines")
-  .classList.remove("on");
-
-  drawBackground();
-
-  savePage();
-
-});
-
-document.getElementById("bgLines")
-.addEventListener("click",()=>{
-
-  backgroundMode = "lines";
-
-  document.getElementById("bgLines")
-  .classList.add("on");
-
-  document.getElementById("bgPlain")
-  .classList.remove("on");
-
-  drawBackground();
-
-  savePage();
-
-});
-
-const ocrModal = document.getElementById("ocrModal");
-const ocrStatus = document.getElementById("ocrStatus");
-const ocrText = document.getElementById("ocrText");
-
-document.getElementById("ocrBtn")
-.addEventListener("click",async()=>{
-
-  ocrModal.style.display = "flex";
-
-  ocrStatus.textContent = "Procesando OCR...";
-
-  try{
-
-    const temp = document.createElement("canvas");
-
-    temp.width = cv.width;
-    temp.height = cv.height;
-
-    const tctx = temp.getContext("2d");
-
-    tctx.fillStyle = "white";
-    tctx.fillRect(0,0,temp.width,temp.height);
-
-    tctx.drawImage(cv,0,0);
-
-    const worker = await Tesseract.createWorker("spa");
-
-    const result =
-      await worker.recognize(temp);
-
-    ocrText.value = result.data.text;
-
-    ocrStatus.textContent = "✓ OCR completo";
-
-    await worker.terminate();
-
-  }catch(err){
-
-    ocrStatus.textContent =
-      "Error OCR";
-
-  }
-
-});
-
-document.getElementById("copyBtn")
-.addEventListener("click",()=>{
-
-  navigator.clipboard.writeText(
-    ocrText.value
-  );
-
-  ocrStatus.textContent =
-    "✓ Copiado";
-
-});
-
-document.getElementById("downloadBtn")
-.addEventListener("click",()=>{
-
-  const a =
-    document.createElement("a");
-
-  a.href = URL.createObjectURL(
-    new Blob([ocrText.value],{
-      type:"text/plain"
-    })
-  );
-
-  a.download = "texto.txt";
-
-  a.click();
-
-});
-
-document.getElementById("closeOcrBtn")
-.addEventListener("click",()=>{
-
-  ocrModal.style.display = "none";
-
-});
-
 try{
 
   const data =
     JSON.parse(
-      localStorage.getItem("pizarra_pro")
+      localStorage.getItem("pizarra_ultra")
     );
 
   if(data){
@@ -668,19 +597,645 @@ try{
 
 }catch(e){}
 
+resizeCanvas();
+
+loadPage(currentPage);
+
 if(backgroundMode === "plain"){
+  activateBgButton("plainBtn");
+}
 
-  document.getElementById("bgPlain")
-  .classList.add("on");
+if(backgroundMode === "lines"){
+  activateBgButton("linesBtn");
+}
 
-  document.getElementById("bgLines")
-  .classList.remove("on");
+if(backgroundMode === "music"){
+  activateBgButton("musicBtn");
+}
+
+drawBackground();
+
+</script>
+
+</body>
+</html>
+```
+```html id="rjuxw4"
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pizarra Pro Ultra</title>
+
+<style>
+
+*{
+  margin:0;
+  padding:0;
+  box-sizing:border-box;
+}
+
+body{
+  overflow:hidden;
+  height:100vh;
+  background:#1b1b1b;
+  font-family:Arial,sans-serif;
+}
+
+#app{
+  display:flex;
+  flex-direction:column;
+  height:100vh;
+}
+
+#toolbar{
+  background:#252525;
+  border-bottom:1px solid #444;
+  padding:8px;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  flex-wrap:wrap;
+}
+
+.title{
+  color:white;
+  font-weight:bold;
+  margin-right:10px;
+}
+
+.btn{
+  background:#333;
+  color:white;
+  border:none;
+  border-radius:8px;
+  padding:7px 11px;
+  cursor:pointer;
+  font-size:13px;
+}
+
+.btn:hover{
+  background:#444;
+}
+
+.btn.on{
+  background:#4a6ee0;
+}
+
+.btn.red{
+  background:#8d2f2f;
+}
+
+.btn.green{
+  background:#2c9a55;
+}
+
+.dot{
+  width:26px;
+  height:26px;
+  border-radius:50%;
+  border:2px solid transparent;
+  background:#777;
+  cursor:pointer;
+}
+
+.dot.on{
+  border-color:white;
+}
+
+#colorPicker{
+  width:34px;
+  height:34px;
+  border:none;
+  background:none;
+  cursor:pointer;
+}
+
+#status{
+  color:#9be38b;
+  font-size:12px;
+}
+
+#pageInfo{
+  color:white;
+  min-width:45px;
+  text-align:center;
+}
+
+#wrap{
+  flex:1;
+  position:relative;
+  background:white;
+}
+
+canvas{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  touch-action:none;
+}
+
+#bg{
+  z-index:1;
+}
+
+#cv{
+  z-index:2;
+}
+
+</style>
+</head>
+
+<body>
+
+<div id="app">
+
+<div id="toolbar">
+
+<div class="title">🖊 Pizarra Pro Ultra</div>
+
+<div class="btn on" data-tool="draw">Lápiz</div>
+<div class="btn" data-tool="erase">Goma</div>
+
+<div class="dot" data-size="1"></div>
+<div class="dot" data-size="2"></div>
+<div class="dot on" data-size="3"></div>
+<div class="dot" data-size="5"></div>
+<div class="dot" data-size="8"></div>
+<div class="dot" data-size="12"></div>
+
+<input type="color" id="colorPicker" value="#111111">
+
+<div class="btn" id="plainBtn">Lisa</div>
+<div class="btn on" id="linesBtn">Rayada</div>
+<div class="btn" id="musicBtn">Pentagrama</div>
+
+<div class="btn" id="prevBtn">◀</div>
+
+<div id="pageInfo">1/1</div>
+
+<div class="btn" id="nextBtn">▶</div>
+
+<div class="btn green" id="addBtn">+ Página</div>
+
+<div class="btn green" id="saveBtn">💾</div>
+
+<div class="btn red" id="clearBtn">Borrar</div>
+
+<div id="status">✓</div>
+
+</div>
+
+<div id="wrap">
+
+<canvas id="bg"></canvas>
+<canvas id="cv"></canvas>
+
+</div>
+
+</div>
+
+<script>
+
+const bg = document.getElementById("bg");
+const cv = document.getElementById("cv");
+
+const bx = bg.getContext("2d");
+const cx = cv.getContext("2d");
+
+const wrap = document.getElementById("wrap");
+
+const statusEl = document.getElementById("status");
+const pageInfo = document.getElementById("pageInfo");
+
+let tool = "draw";
+let size = 3;
+let color = "#111111";
+
+let backgroundMode = "lines";
+
+let drawing = false;
+
+let lastX = 0;
+let lastY = 0;
+
+let pages = [null];
+let currentPage = 0;
+
+let saveTimeout = null;
+
+function resizeCanvas(){
+
+  const w = wrap.clientWidth;
+  const h = wrap.clientHeight;
+
+  const temp = document.createElement("canvas");
+
+  temp.width = cv.width;
+  temp.height = cv.height;
+
+  if(cv.width > 0){
+    temp.getContext("2d").drawImage(cv,0,0);
+  }
+
+  bg.width = w;
+  bg.height = h;
+
+  cv.width = w;
+  cv.height = h;
+
+  drawBackground();
+
+  if(temp.width > 0){
+    cx.drawImage(temp,0,0);
+  }
 
 }
+
+window.addEventListener("resize",resizeCanvas);
+
+function drawBackground(){
+
+  bx.fillStyle = "#ffffff";
+  bx.fillRect(0,0,bg.width,bg.height);
+
+  if(backgroundMode === "plain"){
+    return;
+  }
+
+  if(backgroundMode === "lines"){
+
+    bx.strokeStyle = "#d4d4d4";
+    bx.lineWidth = 1;
+
+    for(let y=40;y<bg.height;y+=40){
+
+      bx.beginPath();
+      bx.moveTo(0,y);
+      bx.lineTo(bg.width,y);
+      bx.stroke();
+
+    }
+
+    return;
+  }
+
+  if(backgroundMode === "music"){
+
+    bx.strokeStyle = "#999";
+    bx.lineWidth = 1;
+
+    for(let block=60; block<bg.height; block+=140){
+
+      for(let i=0;i<5;i++){
+
+        const y = block + i*14;
+
+        bx.beginPath();
+        bx.moveTo(0,y);
+        bx.lineTo(bg.width,y);
+        bx.stroke();
+
+      }
+
+    }
+
+  }
+
+}
+
+function savePage(){
+
+  clearTimeout(saveTimeout);
+
+  saveTimeout = setTimeout(()=>{
+
+    try{
+
+      pages[currentPage] = cv.toDataURL("image/webp",0.8);
+
+      localStorage.setItem(
+        "pizarra_ultra",
+        JSON.stringify({
+          pages,
+          currentPage,
+          backgroundMode
+        })
+      );
+
+      statusEl.textContent = "✓";
+
+    }catch(e){
+
+      statusEl.textContent = "⚠";
+
+    }
+
+  },500);
+
+}
+
+function loadPage(index){
+
+  cx.clearRect(0,0,cv.width,cv.height);
+
+  if(pages[index]){
+
+    const img = new Image();
+
+    img.onload = ()=>{
+
+      cx.drawImage(img,0,0);
+
+    };
+
+    img.src = pages[index];
+
+  }
+
+  pageInfo.textContent =
+    (index+1)+"/"+pages.length;
+
+}
+
+function getPos(e){
+
+  const rect = cv.getBoundingClientRect();
+
+  return {
+    x:e.clientX - rect.left,
+    y:e.clientY - rect.top
+  };
+
+}
+
+function startDraw(e){
+
+  drawing = true;
+
+  const pos = getPos(e);
+
+  lastX = pos.x;
+  lastY = pos.y;
+
+}
+
+function draw(e){
+
+  if(!drawing) return;
+
+  const pos = getPos(e);
+
+  cx.lineCap = "round";
+  cx.lineJoin = "round";
+
+  if(tool === "erase"){
+
+    cx.globalCompositeOperation =
+      "destination-out";
+
+    cx.lineWidth = size * 2;
+
+  }else{
+
+    cx.globalCompositeOperation =
+      "source-over";
+
+    cx.strokeStyle = color;
+
+    cx.lineWidth = size;
+
+  }
+
+  cx.beginPath();
+
+  cx.moveTo(lastX,lastY);
+
+  cx.lineTo(pos.x,pos.y);
+
+  cx.stroke();
+
+  lastX = pos.x;
+  lastY = pos.y;
+
+}
+
+function stopDraw(){
+
+  if(drawing){
+
+    drawing = false;
+
+    savePage();
+
+  }
+
+}
+
+cv.addEventListener("pointerdown",startDraw);
+
+cv.addEventListener("pointermove",draw);
+
+cv.addEventListener("pointerup",stopDraw);
+
+cv.addEventListener("pointercancel",stopDraw);
+
+document.querySelectorAll("[data-tool]")
+.forEach(btn=>{
+
+  btn.addEventListener("click",()=>{
+
+    document.querySelectorAll("[data-tool]")
+    .forEach(b=>b.classList.remove("on"));
+
+    btn.classList.add("on");
+
+    tool = btn.dataset.tool;
+
+  });
+
+});
+
+document.querySelectorAll("[data-size]")
+.forEach(dot=>{
+
+  dot.addEventListener("click",()=>{
+
+    document.querySelectorAll("[data-size]")
+    .forEach(d=>d.classList.remove("on"));
+
+    dot.classList.add("on");
+
+    size = Number(dot.dataset.size);
+
+  });
+
+});
+
+document.getElementById("colorPicker")
+.addEventListener("input",(e)=>{
+
+  color = e.target.value;
+
+});
+
+document.getElementById("plainBtn")
+.addEventListener("click",()=>{
+
+  backgroundMode = "plain";
+
+  activateBgButton("plainBtn");
+
+  drawBackground();
+
+});
+
+document.getElementById("linesBtn")
+.addEventListener("click",()=>{
+
+  backgroundMode = "lines";
+
+  activateBgButton("linesBtn");
+
+  drawBackground();
+
+});
+
+document.getElementById("musicBtn")
+.addEventListener("click",()=>{
+
+  backgroundMode = "music";
+
+  activateBgButton("musicBtn");
+
+  drawBackground();
+
+});
+
+function activateBgButton(id){
+
+  ["plainBtn","linesBtn","musicBtn"]
+  .forEach(x=>{
+
+    document.getElementById(x)
+    .classList.remove("on");
+
+  });
+
+  document.getElementById(id)
+  .classList.add("on");
+
+}
+
+document.getElementById("clearBtn")
+.addEventListener("click",()=>{
+
+  cx.clearRect(0,0,cv.width,cv.height);
+
+  pages[currentPage] = null;
+
+  savePage();
+
+});
+
+document.getElementById("saveBtn")
+.addEventListener("click",()=>{
+
+  savePage();
+
+  statusEl.textContent = "✓ Guardado";
+
+});
+
+document.getElementById("nextBtn")
+.addEventListener("click",()=>{
+
+  savePage();
+
+  if(currentPage < pages.length-1){
+
+    currentPage++;
+
+  }else{
+
+    pages.push(null);
+
+    currentPage = pages.length - 1;
+
+  }
+
+  loadPage(currentPage);
+
+});
+
+document.getElementById("prevBtn")
+.addEventListener("click",()=>{
+
+  if(currentPage > 0){
+
+    savePage();
+
+    currentPage--;
+
+    loadPage(currentPage);
+
+  }
+
+});
+
+document.getElementById("addBtn")
+.addEventListener("click",()=>{
+
+  savePage();
+
+  pages.push(null);
+
+  currentPage = pages.length - 1;
+
+  loadPage(currentPage);
+
+});
+
+try{
+
+  const data =
+    JSON.parse(
+      localStorage.getItem("pizarra_ultra")
+    );
+
+  if(data){
+
+    pages = data.pages || [null];
+
+    currentPage =
+      data.currentPage || 0;
+
+    backgroundMode =
+      data.backgroundMode || "lines";
+
+  }
+
+}catch(e){}
 
 resizeCanvas();
 
 loadPage(currentPage);
+
+if(backgroundMode === "plain"){
+  activateBgButton("plainBtn");
+}
+
+if(backgroundMode === "lines"){
+  activateBgButton("linesBtn");
+}
+
+if(backgroundMode === "music"){
+  activateBgButton("musicBtn");
+}
+
+drawBackground();
 
 </script>
 
