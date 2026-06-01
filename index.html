@@ -338,14 +338,14 @@ dc.addEventListener('touchstart', e => {
 
 dc.addEventListener('touchmove', e => {
   e.preventDefault();
-  if (!drawing || activeId !== -1) return;
+  if (!drawing || activeId !== -1) return; // -1 = touch activo, continuar
   const [x, y] = getXYTouch(e.changedTouches[0]);
   continueStroke(x, y, 0);
 }, { passive: false });
 
 dc.addEventListener('touchend', e => {
   e.preventDefault();
-  if (activeId !== -1) return;
+  if (activeId !== -1) return; // solo terminar si estamos en modo touch
   endStroke();
 }, { passive: false });
 
